@@ -1,0 +1,848 @@
+.magical-garden-3d {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(
+    ellipse at center,
+    #1a4f63 0%,
+    #2d5a27 40%,
+    #0f2027 100%
+  );
+  perspective: 1000px;
+  transform-style: preserve-3d;
+}
+
+/* 3D Canvas */
+.garden-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Voice Interface */
+.voice-interface {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+
+.voice-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 50px;
+  padding: 15px 30px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.voice-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+}
+
+.voice-button.listening {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+  animation: pulse 1.5s infinite;
+}
+
+.voice-pulse {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-transcript {
+  margin-top: 10px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  color: #333;
+  font-style: italic;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Garden Stats */
+.garden-stats {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  z-index: 100;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 10px 15px;
+  color: white;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.stat-icon {
+  font-size: 20px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Weather Display */
+.weather-display {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 100;
+}
+
+.weather-item {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: white;
+  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Social Panel */
+.social-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 250px;
+  max-height: 200px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(15px);
+  border-radius: 20px;
+  padding: 15px;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 100;
+}
+
+.social-panel h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  text-align: center;
+}
+
+.firefly-list {
+  max-height: 100px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.social-firefly {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.firefly-glow {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: firefly-glow 2s infinite;
+}
+
+.firefly-time {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 10px;
+}
+
+.share-mood {
+  width: 100%;
+  background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+  border: none;
+  border-radius: 15px;
+  padding: 10px;
+  color: #2d3436;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.share-mood:hover {
+  transform: translateY(-1px);
+}
+
+/* Magical Moments */
+.magical-moments {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 200;
+  pointer-events: none;
+}
+
+.magical-moment {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+  backdrop-filter: blur(15px);
+  border-radius: 25px;
+  padding: 15px 25px;
+  margin-bottom: 10px;
+  color: #2d3436;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  animation: magical-appear 0.5s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Interaction Hints */
+.interaction-hints {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+}
+
+.hint {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: white;
+  font-size: 12px;
+  opacity: 0.8;
+  animation: hint-pulse 3s infinite;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 3D Plant Renderer */
+.plant-renderer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  transform-style: preserve-3d;
+}
+
+.plant-3d {
+  position: absolute;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: all 0.3s ease;
+  animation: plant-grow 3s ease-out;
+}
+
+.plant-3d:hover {
+  transform: scale(1.1) !important;
+  filter: brightness(1.2);
+}
+
+/* Lavender */
+.plant-lavender {
+  width: 60px;
+  height: 80px;
+}
+
+.plant-lavender .plant-stem {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  height: calc(var(--growth-stage, 0) * 60px);
+  background: linear-gradient(to top, #4a5d23, #6a7f2a);
+  border-radius: 2px;
+  transform: translateX(-50%);
+  animation: stem-sway 4s ease-in-out infinite;
+}
+
+.plant-lavender .plant-leaves {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  width: calc(var(--growth-stage, 0) * 40px);
+  height: calc(var(--growth-stage, 0) * 30px);
+  background: radial-gradient(ellipse, #8fbc8f, #556b2f);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  transform: translateX(-50%);
+  opacity: var(--growth-stage, 0);
+}
+
+.plant-lavender .plant-flowers {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--growth-stage, 0) * 20px);
+  height: calc(var(--growth-stage, 0) * 30px);
+  background: linear-gradient(to top, #9370db, #dda0dd);
+  border-radius: 50% 50% 50% 50% / 80% 80% 20% 20%;
+  transform: translateX(-50%);
+  opacity: var(--growth-stage, 0);
+  animation: flower-bloom 2s ease-out 1s;
+}
+
+/* Sunflower */
+.plant-sunflower {
+  width: 80px;
+  height: 120px;
+}
+
+.plant-sunflower .plant-stem {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 8px;
+  height: calc(var(--growth-stage, 0) * 100px);
+  background: linear-gradient(to top, #228b22, #32cd32);
+  border-radius: 4px;
+  transform: translateX(-50%);
+  animation: stem-sway 3s ease-in-out infinite;
+}
+
+.plant-sunflower .plant-leaves {
+  position: absolute;
+  bottom: 30%;
+  left: 50%;
+  width: calc(var(--growth-stage, 0) * 60px);
+  height: calc(var(--growth-stage, 0) * 40px);
+  background: radial-gradient(ellipse, #9acd32, #556b2f);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  opacity: var(--growth-stage, 0);
+}
+
+.plant-sunflower .plant-flowers {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--growth-stage, 0) * 60px);
+  height: calc(var(--growth-stage, 0) * 60px);
+  background: radial-gradient(circle, #8b4513 20%, #ffd700 20%, #ffd700 80%, #ff8c00 80%);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  opacity: var(--growth-stage, 0);
+  animation: sunflower-rotate 10s linear infinite;
+}
+
+/* Willow */
+.plant-willow {
+  width: 120px;
+  height: 150px;
+}
+
+.plant-willow .plant-stem {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 12px;
+  height: calc(var(--growth-stage, 0) * 120px);
+  background: linear-gradient(to top, #8b4513, #daa520);
+  border-radius: 6px;
+  transform: translateX(-50%);
+}
+
+.plant-willow .plant-leaves {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  width: calc(var(--growth-stage, 0) * 100px);
+  height: calc(var(--growth-stage, 0) * 80px);
+  background: radial-gradient(ellipse, #9acd32, #006400);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  transform: translateX(-50%);
+  opacity: var(--growth-stage, 0);
+  animation: willow-droop 5s ease-in-out infinite;
+}
+
+/* Lotus */
+.plant-lotus {
+  width: 80px;
+  height: 60px;
+}
+
+.plant-lotus .plant-stem {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 6px;
+  height: calc(var(--growth-stage, 0) * 40px);
+  background: linear-gradient(to top, #2e8b57, #3cb371);
+  border-radius: 3px;
+  transform: translateX(-50%);
+}
+
+.plant-lotus .plant-leaves {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  width: calc(var(--growth-stage, 0) * 70px);
+  height: calc(var(--growth-stage, 0) * 50px);
+  background: radial-gradient(ellipse, #90ee90, #228b22);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  opacity: var(--growth-stage, 0);
+}
+
+.plant-lotus .plant-flowers {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--growth-stage, 0) * 50px);
+  height: calc(var(--growth-stage, 0) * 40px);
+  background: radial-gradient(ellipse, #ffc0cb, #ff69b4);
+  border-radius: 50% 50% 50% 50% / 80% 80% 20% 20%;
+  transform: translateX(-50%);
+  opacity: var(--growth-stage, 0);
+  animation: lotus-float 4s ease-in-out infinite;
+}
+
+.plant-glow {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 70%
+  );
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  animation: plant-energy 3s ease-in-out infinite;
+}
+
+.plant-3d:hover .plant-glow {
+  opacity: 1;
+}
+
+/* 3D Creature Renderer */
+.creature-renderer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 15;
+  transform-style: preserve-3d;
+}
+
+.creature-3d {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  transform-style: preserve-3d;
+  animation: creature-float 3s ease-in-out infinite;
+}
+
+/* Butterfly */
+.creature-butterfly .creature-body {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 12px;
+  background: linear-gradient(to bottom, #8b4513, #654321);
+  border-radius: 1.5px;
+  transform: translate(-50%, -50%);
+}
+
+.creature-butterfly .creature-wings {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 12px;
+  background: linear-gradient(45deg, #ff6b6b, #ffd93d, #6bcf7f, #4d79ff);
+  border-radius: 50% 10% 50% 10%;
+  transform: translate(-50%, -50%);
+  animation: butterfly-flap 0.5s ease-in-out infinite alternate;
+}
+
+.creature-butterfly .creature-wings::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 16px;
+  height: 8px;
+  background: linear-gradient(45deg, #ff9ff3, #f368e0, #3742fa, #2f3542);
+  border-radius: 50% 10% 50% 10%;
+  animation: butterfly-flap 0.5s ease-in-out infinite alternate;
+}
+
+/* Firefly */
+.creature-firefly .creature-body {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 8px;
+  background: linear-gradient(to bottom, #2c2c54, #40407a);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+}
+
+.creature-firefly .creature-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle, #ffd700, transparent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: firefly-glow 2s ease-in-out infinite;
+}
+
+/* Bird */
+.creature-bird .creature-body {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 10px;
+  background: linear-gradient(to bottom, #8b4513, #654321);
+  border-radius: 3px;
+  transform: translate(-50%, -50%);
+}
+
+.creature-bird .creature-wings {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 8px;
+  background: linear-gradient(45deg, #696969, #a9a9a9);
+  border-radius: 50% 50% 50% 50% / 80% 80% 20% 20%;
+  transform: translate(-50%, -50%);
+  animation: bird-flap 0.3s ease-in-out infinite alternate;
+}
+
+.creature-trail {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 20px;
+  background: linear-gradient(to top, transparent, rgba(255, 255, 255, 0.3));
+  border-radius: 1px;
+  transform: translate(-50%, -50%);
+  opacity: 0.6;
+}
+
+/* Particle System */
+.particle-system {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.mist-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.05) 1px,
+    transparent 2px
+  );
+  animation: mist-drift 10s linear infinite;
+}
+
+.rain-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    -10deg,
+    transparent,
+    rgba(135, 206, 235, 0.3) 1px,
+    transparent 2px
+  );
+  animation: rain-fall 2s linear infinite;
+}
+
+.pollen-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    1px 1px at 20px 30px,
+    #ffd700,
+    transparent
+  ),
+  radial-gradient(
+    1px 1px at 40px 70px,
+    #ffeb3b,
+    transparent
+  ),
+  radial-gradient(
+    1px 1px at 90px 40px,
+    #fff176,
+    transparent
+  );
+  animation: pollen-float 15s ease-in-out infinite;
+}
+
+.magic-sparkles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    2px 2px at 100px 200px,
+    rgba(255, 255, 255, 0.8),
+    transparent
+  ),
+  radial-gradient(
+    1px 1px at 300px 100px,
+    rgba(255, 182, 193, 0.8),
+    transparent
+  ),
+  radial-gradient(
+    1px 1px at 500px 300px,
+    rgba(173, 216, 230, 0.8),
+    transparent
+  );
+  animation: sparkle-twinkle 5s ease-in-out infinite;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes magical-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes plant-grow {
+  0% {
+    transform: scale(0) rotateY(0deg);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes stem-sway {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  25% { transform: translateX(-50%) rotate(2deg); }
+  75% { transform: translateX(-50%) rotate(-2deg); }
+}
+
+@keyframes flower-bloom {
+  0% { transform: translateX(-50%) scale(0); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+@keyframes sunflower-rotate {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  100% { transform: translateX(-50%) rotate(360deg); }
+}
+
+@keyframes willow-droop {
+  0%, 100% { transform: translateX(-50%) scaleY(1); }
+  50% { transform: translateX(-50%) scaleY(1.1); }
+}
+
+@keyframes lotus-float {
+  0%, 100% { transform: translateX(-50%) translateY(0px); }
+  50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+@keyframes plant-energy {
+  0%, 100% { opacity: 0; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.1); }
+}
+
+@keyframes creature-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes butterfly-flap {
+  0% { transform: translate(-50%, -50%) rotateX(0deg); }
+  100% { transform: translate(-50%, -50%) rotateX(15deg); }
+}
+
+@keyframes bird-flap {
+  0% { transform: translate(-50%, -50%) rotateZ(0deg); }
+  100% { transform: translate(-50%, -50%) rotateZ(10deg); }
+}
+
+@keyframes firefly-glow {
+  0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+}
+
+@keyframes mist-drift {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(100px); }
+}
+
+@keyframes rain-fall {
+  0% { transform: translateY(-100vh); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes pollen-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(180deg); }
+}
+
+@keyframes sparkle-twinkle {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .garden-stats {
+    top: 10px;
+    right: 10px;
+    gap: 10px;
+  }
+  
+  .stat {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .weather-display {
+    top: 10px;
+    left: 10px;
+    gap: 8px;
+  }
+  
+  .weather-item {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .social-panel {
+    width: 200px;
+    padding: 12px;
+  }
+  
+  .voice-interface {
+    bottom: 100px;
+  }
+  
+  .interaction-hints {
+    bottom: 10px;
+    left: 10px;
+  }
+  
+  .hint {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  
+  .magical-moment {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+  .plant-3d:active {
+    transform: scale(1.2) !important;
+  }
+  
+  .voice-button:active {
+    transform: translateY(0);
+  }
+}
+
+/* High-contrast mode */
+@media (prefers-contrast: high) {
+  .magical-garden-3d {
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+  }
+  
+  .stat,
+  .weather-item,
+  .social-panel {
+    border: 2px solid #ffffff;
+    background: rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

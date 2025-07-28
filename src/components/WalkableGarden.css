@@ -1,0 +1,735 @@
+/* Walkable Garden - Immersive 2D Experience */
+.walkable-garden {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(to bottom, #87CEEB 0%, #98FB98 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Garden UI */
+.garden-ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 15px 20px;
+}
+
+.garden-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.garden-header h1 {
+  color: #2d5016;
+  font-size: 1.8rem;
+  margin: 0;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  background: linear-gradient(45deg, #228B22, #32CD32);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.weather-info {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: bold;
+  color: #333;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.controls-info {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  font-size: 0.9rem;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.interaction-hint {
+  background: rgba(255, 215, 0, 0.9);
+  color: #333 !important;
+  padding: 6px 12px;
+  border-radius: 15px;
+  font-weight: bold;
+  animation: pulse-hint 2s ease-in-out infinite;
+  text-shadow: none !important;
+}
+
+@keyframes pulse-hint {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Garden Viewport */
+.garden-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-size: cover;
+}
+
+.garden-world {
+  position: relative;
+  transition: transform 0.1s ease-out;
+  image-rendering: crisp-edges;
+}
+
+/* Environment Layers */
+.environment-layer {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.environment-layer.sky {
+  background: linear-gradient(to bottom, 
+    #87CEEB 0%, 
+    #98FB98 40%, 
+    #90EE90 70%, 
+    #228B22 100%
+  );
+  z-index: 1;
+}
+
+.environment-layer.mountains {
+  background: 
+    conic-gradient(from 90deg at 15% 100%, #8B7355 0deg, #A0522D 60deg, #8B7355 120deg, transparent 180deg),
+    conic-gradient(from 90deg at 45% 100%, #696969 0deg, #808080 60deg, #696969 120deg, transparent 180deg),
+    conic-gradient(from 90deg at 75% 100%, #8B7355 0deg, #A0522D 60deg, #8B7355 120deg, transparent 180deg);
+  background-size: 300px 180px, 400px 220px, 350px 200px;
+  background-position: 0% 100%, 30% 100%, 60% 100%;
+  background-repeat: no-repeat;
+  z-index: 2;
+}
+
+.environment-layer.forest-distant {
+  background: 
+    radial-gradient(ellipse 60px 140px at 10% 100%, rgba(34,100,34,0.3) 0%, transparent 70%),
+    radial-gradient(ellipse 80px 160px at 25% 100%, rgba(34,100,34,0.2) 0%, transparent 70%),
+    radial-gradient(ellipse 50px 120px at 40% 100%, rgba(34,100,34,0.4) 0%, transparent 70%),
+    radial-gradient(ellipse 70px 150px at 60% 100%, rgba(34,100,34,0.3) 0%, transparent 70%),
+    radial-gradient(ellipse 90px 170px at 80% 100%, rgba(34,100,34,0.2) 0%, transparent 70%);
+  background-repeat: no-repeat;
+  z-index: 3;
+  filter: blur(2px);
+}
+
+.environment-layer.forest-mid {
+  background: 
+    radial-gradient(ellipse 80px 200px at 15% 100%, rgba(34,139,34,0.4) 0%, transparent 80%),
+    radial-gradient(ellipse 100px 220px at 35% 100%, rgba(34,139,34,0.3) 0%, transparent 80%),
+    radial-gradient(ellipse 70px 180px at 55% 100%, rgba(34,139,34,0.5) 0%, transparent 80%),
+    radial-gradient(ellipse 90px 200px at 75% 100%, rgba(34,139,34,0.3) 0%, transparent 80%);
+  background-repeat: no-repeat;
+  z-index: 4;
+  filter: blur(1px);
+}
+
+.environment-layer.forest-close {
+  background: 
+    radial-gradient(ellipse 120px 280px at 20% 100%, rgba(34,139,34,0.6) 0%, transparent 85%),
+    radial-gradient(ellipse 140px 300px at 50% 100%, rgba(34,139,34,0.5) 0%, transparent 85%),
+    radial-gradient(ellipse 100px 260px at 80% 100%, rgba(34,139,34,0.7) 0%, transparent 85%);
+  background-repeat: no-repeat;
+  z-index: 5;
+}
+
+/* Garden Paths */
+.garden-paths {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+.main-path {
+  position: absolute;
+  width: 8%;
+  height: 80%;
+  top: 10%;
+  left: 46%;
+  background: 
+    linear-gradient(to bottom, 
+      rgba(160,82,45,0.8) 0%, 
+      rgba(139,69,19,0.9) 50%, 
+      rgba(160,82,45,0.8) 100%
+    );
+  border-radius: 40px;
+  box-shadow: 
+    inset 0 0 10px rgba(0,0,0,0.3),
+    0 2px 5px rgba(0,0,0,0.2);
+}
+
+.side-path-1 {
+  position: absolute;
+  width: 6%;
+  height: 40%;
+  top: 30%;
+  left: 20%;
+  background: rgba(160,82,45,0.7);
+  border-radius: 30px;
+  transform: rotate(25deg);
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.3);
+}
+
+.side-path-2 {
+  position: absolute;
+  width: 6%;
+  height: 35%;
+  top: 40%;
+  right: 25%;
+  background: rgba(160,82,45,0.7);
+  border-radius: 30px;
+  transform: rotate(-20deg);
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.3);
+}
+
+.circular-path {
+  position: absolute;
+  width: 25%;
+  height: 25%;
+  top: 55%;
+  left: 60%;
+  border: 4px solid rgba(160,82,45,0.8);
+  border-radius: 50%;
+  background: rgba(160,82,45,0.2);
+  box-shadow: inset 0 0 15px rgba(0,0,0,0.3);
+}
+
+/* Terrain */
+.terrain-layer {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 8;
+}
+
+.terrain-layer.grass {
+  background: 
+    /* Grass texture */
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      rgba(34,139,34,0.1) 1px,
+      transparent 2px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      45deg,
+      transparent 0px,
+      rgba(50,205,50,0.1) 1px,
+      transparent 2px,
+      transparent 6px
+    ),
+    linear-gradient(to bottom, 
+      rgba(144,238,144,0.8) 0%, 
+      rgba(50,205,50,0.9) 40%, 
+      rgba(34,139,34,0.95) 80%, 
+      rgba(34,100,34,1) 100%
+    );
+}
+
+.terrain-layer.dirt-patches {
+  background-image: 
+    /* Dirt patches */
+    radial-gradient(ellipse 40px 20px at 25% 60%, rgba(139,69,19,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 30px 15px at 60% 40%, rgba(160,82,45,0.5) 0%, transparent 70%),
+    radial-gradient(ellipse 35px 18px at 80% 70%, rgba(139,69,19,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 25px 12px at 15% 80%, rgba(160,82,45,0.5) 0%, transparent 70%);
+  background-repeat: no-repeat;
+}
+
+/* Decorative Elements */
+.decoration {
+  position: absolute;
+  font-size: 2.5rem;
+  z-index: 15;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.4));
+  transition: transform 0.3s ease;
+  cursor: pointer;
+}
+
+.decoration:hover {
+  transform: scale(1.1);
+}
+
+.decoration.stone {
+  animation: none;
+  filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.5)) contrast(1.2);
+}
+
+.decoration.tree-stump {
+  font-size: 3rem;
+  animation: none;
+  filter: drop-shadow(4px 4px 8px rgba(0,0,0,0.6)) brightness(0.9);
+}
+
+.decoration.flower-bush {
+  font-size: 2rem;
+  animation: gentle-sway 4s ease-in-out infinite;
+  filter: drop-shadow(2px 2px 4px rgba(255,20,147,0.4)) brightness(1.2);
+}
+
+.decoration.fern-cluster {
+  font-size: 2.8rem;
+  animation: gentle-sway 5s ease-in-out infinite;
+  filter: drop-shadow(2px 2px 4px rgba(34,139,34,0.5)) saturate(1.4);
+}
+
+/* Water Features */
+.water-feature.pond {
+  position: absolute;
+  width: 15%;
+  height: 10%;
+  background: 
+    radial-gradient(ellipse at center, 
+      rgba(30,144,255,0.8) 0%, 
+      rgba(65,105,225,0.6) 40%, 
+      rgba(25,25,112,0.4) 100%
+    );
+  border-radius: 50%;
+  box-shadow: 
+    inset 0 0 20px rgba(0,0,0,0.3),
+    0 2px 10px rgba(0,0,0,0.2);
+  z-index: 12;
+}
+
+.water-surface {
+  position: absolute;
+  top: 20%;
+  left: 30%;
+  font-size: 1.5rem;
+  animation: water-ripple 3s ease-in-out infinite;
+}
+
+.water-lily {
+  position: absolute;
+  font-size: 1.8rem;
+  animation: float-on-water 4s ease-in-out infinite;
+  filter: drop-shadow(1px 1px 3px rgba(255,182,193,0.6));
+}
+
+@keyframes water-ripple {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.7; }
+  50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+}
+
+@keyframes float-on-water {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-2px) rotate(5deg); }
+}
+
+/* Garden Plants */
+.garden-plant {
+  position: absolute;
+  z-index: 20;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.garden-plant.nearby {
+  transform: scale(1.1);
+}
+
+.plant-sprite {
+  font-size: 3rem;
+  animation: gentle-plant-sway 4s ease-in-out infinite;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3)) brightness(1.1);
+  transition: all 0.3s ease;
+}
+
+.garden-plant:hover .plant-sprite {
+  transform: scale(1.2);
+  filter: drop-shadow(3px 3px 8px rgba(255,215,0,0.6)) brightness(1.3);
+}
+
+.plant-shadow {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 8px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 50%;
+  filter: blur(3px);
+}
+
+@keyframes gentle-plant-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(1deg); }
+  50% { transform: translateY(0px) rotate(0deg); }
+  75% { transform: translateY(-2px) rotate(-1deg); }
+}
+
+/* Garden Pets */
+.garden-pet {
+  position: absolute;
+  z-index: 25;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.garden-pet.nearby {
+  transform: scale(1.2);
+}
+
+.pet-sprite {
+  font-size: 2rem;
+  filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.3)) brightness(1.2);
+  transition: all 0.3s ease;
+}
+
+.garden-pet.butterfly .pet-sprite {
+  animation: butterfly-flutter 2.5s ease-in-out infinite;
+}
+
+.garden-pet.firefly .pet-sprite {
+  animation: firefly-glow 1.8s ease-in-out infinite alternate;
+}
+
+.garden-pet.bird .pet-sprite {
+  animation: bird-hop 3s ease-in-out infinite;
+}
+
+.garden-pet.bee .pet-sprite {
+  animation: bee-buzz 1.5s ease-in-out infinite;
+}
+
+.pet-shadow {
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 25px;
+  height: 5px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 50%;
+  filter: blur(2px);
+}
+
+@keyframes butterfly-flutter {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-5px) rotate(3deg); }
+  50% { transform: translateY(-2px) rotate(0deg); }
+  75% { transform: translateY(-7px) rotate(-3deg); }
+}
+
+@keyframes firefly-glow {
+  0% { 
+    filter: drop-shadow(0 0 5px rgba(255,255,0,0.6)) brightness(1);
+    transform: scale(1);
+  }
+  100% { 
+    filter: drop-shadow(0 0 15px rgba(255,255,0,0.9)) brightness(1.5);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes bird-hop {
+  0%, 80%, 100% { transform: translateY(0px); }
+  20%, 60% { transform: translateY(-8px); }
+}
+
+@keyframes bee-buzz {
+  0%, 100% { transform: translateX(0px) translateY(0px); }
+  25% { transform: translateX(2px) translateY(-1px); }
+  50% { transform: translateX(0px) translateY(-2px); }
+  75% { transform: translateX(-2px) translateY(-1px); }
+}
+
+/* Player Character */
+.player-character {
+  position: absolute;
+  z-index: 30;
+  transition: all 0.1s ease-out;
+}
+
+.player-sprite {
+  font-size: 2.5rem;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.4)) brightness(1.1);
+  transition: all 0.2s ease;
+}
+
+.player-character.walking .player-sprite {
+  animation: player-walk 0.6s ease-in-out infinite;
+}
+
+.player-character.left .player-sprite {
+  transform: scaleX(-1);
+}
+
+.player-shadow {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 35px;
+  height: 8px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 50%;
+  filter: blur(3px);
+}
+
+@keyframes player-walk {
+  0%, 100% { transform: translateY(0px) scaleY(1); }
+  50% { transform: translateY(-2px) scaleY(0.95); }
+}
+
+/* Interaction Indicators */
+.interaction-indicator {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.2rem;
+  animation: interaction-pulse 1.5s ease-in-out infinite;
+  z-index: 50;
+}
+
+@keyframes interaction-pulse {
+  0%, 100% { transform: translateX(-50%) translateY(0px) scale(1); opacity: 0.7; }
+  50% { transform: translateX(-50%) translateY(-5px) scale(1.3); opacity: 1; }
+}
+
+/* Atmospheric Effects */
+.atmospheric-effects {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 35;
+}
+
+.floating-pollen {
+  position: absolute;
+  font-size: 0.8rem;
+  opacity: 0.6;
+  animation: float-drift 10s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(255,255,0,0.5));
+}
+
+.wind-effect {
+  position: absolute;
+  font-size: 1.5rem;
+  opacity: 0.4;
+  animation: wind-drift 8s ease-in-out infinite;
+}
+
+@keyframes float-drift {
+  0% { transform: translateY(0px) translateX(0px) rotate(0deg); opacity: 0.3; }
+  25% { transform: translateY(-30px) translateX(20px) rotate(90deg); opacity: 0.8; }
+  50% { transform: translateY(-20px) translateX(-10px) rotate(180deg); opacity: 0.6; }
+  75% { transform: translateY(-40px) translateX(30px) rotate(270deg); opacity: 0.7; }
+  100% { transform: translateY(-10px) translateX(5px) rotate(360deg); opacity: 0.4; }
+}
+
+@keyframes wind-drift {
+  0% { transform: translateX(-100px) translateY(0px); opacity: 0.2; }
+  50% { transform: translateX(200px) translateY(-20px); opacity: 0.6; }
+  100% { transform: translateX(500px) translateY(-5px); opacity: 0.1; }
+}
+
+/* Garden Stats */
+.garden-stats {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  gap: 15px;
+  z-index: 1000;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 12px 16px;
+  border-radius: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.stat-icon {
+  font-size: 1.5rem;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #2d5016;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: #666;
+  line-height: 1;
+}
+
+/* Modals */
+.plant-wisdom-modal,
+.pet-interaction-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  animation: modal-fade-in 0.3s ease;
+}
+
+.wisdom-content,
+.pet-interaction-content {
+  background: linear-gradient(135deg, #f8fff8 0%, #e8f5e8 100%);
+  padding: 30px;
+  border-radius: 20px;
+  max-width: 500px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: modal-slide-in 0.4s ease;
+}
+
+.plant-avatar,
+.pet-avatar {
+  font-size: 4rem;
+  margin-bottom: 15px;
+  filter: drop-shadow(3px 3px 8px rgba(0,0,0,0.3));
+}
+
+.wisdom-content h2 {
+  color: #2d5016;
+  margin-bottom: 20px;
+  font-size: 1.6rem;
+}
+
+.wisdom-text p,
+.pet-message {
+  margin: 12px 0;
+  color: #333;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.wisdom-content button,
+.close-interaction {
+  background: linear-gradient(45deg, #228B22, #32CD32);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 20px;
+  box-shadow: 0 4px 15px rgba(34,139,34,0.3);
+  transition: all 0.3s ease;
+}
+
+.wisdom-content button:hover,
+.close-interaction:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(34,139,34,0.4);
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-slide-in {
+  from { transform: translateY(-50px) scale(0.9); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Gentle sway animation for various elements */
+@keyframes gentle-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-2px) rotate(1deg); }
+  50% { transform: translateY(0px) rotate(0deg); }
+  75% { transform: translateY(-1px) rotate(-1deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .garden-header h1 {
+    font-size: 1.4rem;
+  }
+  
+  .controls-info {
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.8rem;
+  }
+  
+  .garden-stats {
+    bottom: 10px;
+    left: 10px;
+    gap: 10px;
+  }
+  
+  .stat-card {
+    padding: 8px 12px;
+  }
+  
+  .plant-sprite,
+  .player-sprite {
+    font-size: 2rem;
+  }
+  
+  .decoration {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .garden-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .garden-header h1 {
+    font-size: 1.2rem;
+  }
+  
+  .plant-sprite,
+  .player-sprite {
+    font-size: 1.8rem;
+  }
+  
+  .garden-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

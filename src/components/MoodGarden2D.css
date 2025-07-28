@@ -1,0 +1,585 @@
+/* Realistic 2D Garden Styles */
+.mood-garden {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e8f5e8 0%, #f0f8ff 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.garden-header {
+  text-align: center;
+  margin: 20px 0;
+  z-index: 100;
+  position: relative;
+}
+
+.garden-header h1 {
+  color: #2d5016;
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+  background: linear-gradient(45deg, #228B22, #32CD32);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.weather-indicator {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  color: #333;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  backdrop-filter: blur(10px);
+}
+
+/* Garden Viewport - Scrollable Container */
+.garden-viewport {
+  width: 90vw;
+  height: 70vh;
+  max-width: 1200px;
+  border: 4px solid #8fbc8f;
+  border-radius: 20px;
+  position: relative;
+  overflow: auto;
+  box-shadow: 
+    0 20px 60px rgba(0,0,0,0.2),
+    inset 0 0 0 2px rgba(255,255,255,0.1);
+  margin: 20px 0;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+/* Create a larger scrollable world inside */
+.garden-viewport > * {
+  width: 300%; /* Make the world 3x wider for horizontal scrolling */
+  height: 250%; /* Make the world 2.5x taller for vertical scrolling */
+}
+
+/* Custom scrollbar */
+.garden-viewport::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.garden-viewport::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.1);
+  border-radius: 6px;
+}
+
+.garden-viewport::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #8fbc8f, #6aa84f);
+  border-radius: 6px;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+.garden-viewport::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #7fac7f, #5a943f);
+}
+
+/* Background Landscape Layers */
+.garden-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.mountain-range {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  background: 
+    conic-gradient(from 90deg at 20% 100%, #8B7355 0deg, #A0522D 60deg, #8B7355 120deg, transparent 180deg),
+    conic-gradient(from 90deg at 60% 100%, #8B7355 0deg, #A0522D 60deg, #8B7355 120deg, transparent 180deg),
+    conic-gradient(from 90deg at 80% 100%, #696969 0deg, #808080 60deg, #696969 120deg, transparent 180deg);
+  background-size: 400px 200px, 300px 150px, 500px 250px;
+  background-position: 0% 100%, 40% 100%, 70% 100%;
+  background-repeat: no-repeat;
+  opacity: 0.3;
+}
+
+.cloud-layer {
+  position: absolute;
+  top: 5%;
+  left: 0;
+  width: 100%;
+  height: 25%;
+  background: 
+    radial-gradient(ellipse 200px 80px at 20% 50%, rgba(255,255,255,0.8) 0%, transparent 70%),
+    radial-gradient(ellipse 150px 60px at 60% 30%, rgba(255,255,255,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 300px 100px at 80% 60%, rgba(255,255,255,0.7) 0%, transparent 70%);
+  background-repeat: no-repeat;
+  animation: cloudsFloat 20s infinite linear;
+}
+
+.forest-background {
+  position: absolute;
+  bottom: 20%;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: 
+    linear-gradient(to top, transparent 0%, rgba(34,139,34,0.1) 30%, rgba(34,139,34,0.2) 60%, rgba(34,139,34,0.3) 100%);
+  background-image: 
+    radial-gradient(ellipse 80px 200px at 10% 100%, rgba(34,139,34,0.4) 0%, transparent 70%),
+    radial-gradient(ellipse 60px 150px at 25% 100%, rgba(34,139,34,0.3) 0%, transparent 70%),
+    radial-gradient(ellipse 100px 250px at 40% 100%, rgba(34,139,34,0.5) 0%, transparent 70%),
+    radial-gradient(ellipse 70px 180px at 60% 100%, rgba(34,139,34,0.3) 0%, transparent 70%),
+    radial-gradient(ellipse 90px 220px at 80% 100%, rgba(34,139,34,0.4) 0%, transparent 70%);
+  background-repeat: no-repeat;
+}
+
+/* Garden Terrain */
+.garden-terrain {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  z-index: 2;
+}
+
+.grass-layer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  background: 
+    linear-gradient(to top, 
+      #228B22 0%, 
+      #32CD32 30%, 
+      #90EE90 60%, 
+      rgba(144,238,144,0.8) 100%
+    );
+  background-image: 
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      rgba(34,139,34,0.1) 1px,
+      transparent 2px,
+      transparent 8px
+    ),
+    repeating-linear-gradient(
+      45deg,
+      transparent 0px,
+      rgba(50,205,50,0.1) 1px,
+      transparent 2px,
+      transparent 12px
+    );
+}
+
+.soil-layer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 15%;
+  background: 
+    linear-gradient(to top,
+      #8B4513 0%,
+      #A0522D 50%,
+      rgba(160,82,45,0.8) 100%
+    );
+  background-image: 
+    radial-gradient(circle at 20% 50%, rgba(139,69,19,0.3) 0%, transparent 50%),
+    radial-gradient(circle at 60% 30%, rgba(160,82,45,0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(139,69,19,0.3) 0%, transparent 50%);
+}
+
+/* Plant and Pet Elements */
+.plants-container,
+.pets-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+.plant-element {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: bottom center;
+  user-select: none;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.plant-element:hover {
+  transform: scale(1.1) translateY(-2px);
+  filter: brightness(1.2) drop-shadow(0 4px 8px rgba(0,0,0,0.3)) !important;
+  z-index: 20;
+}
+
+.pet-element {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+  user-select: none;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.pet-element:hover {
+  transform: scale(1.2);
+  filter: brightness(1.3) drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+  z-index: 25;
+}
+
+/* Decorative Elements */
+.garden-decorations {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.decoration-emoji {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
+  animation: gentle-sway 6s ease-in-out infinite;
+}
+
+.decoration-emoji.rock {
+  animation: none;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.4)) contrast(1.1);
+}
+
+.decoration-emoji.mushroom {
+  animation: gentle-sway 8s ease-in-out infinite;
+  filter: drop-shadow(1px 1px 3px rgba(139,69,19,0.4)) saturate(1.2);
+}
+
+.decoration-emoji.fallen-log {
+  animation: none;
+  filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.5)) brightness(0.9);
+}
+
+.decoration-emoji.fern {
+  animation: gentle-sway 5s ease-in-out infinite;
+  filter: drop-shadow(1px 1px 2px rgba(34,139,34,0.4)) saturate(1.3);
+}
+
+.decoration-emoji.wildflowers {
+  animation: gentle-sway 4s ease-in-out infinite;
+  filter: drop-shadow(1px 1px 3px rgba(255,20,147,0.3)) brightness(1.1);
+}
+
+.decoration-emoji.leaves {
+  animation: leavesRustle 7s ease-in-out infinite;
+  filter: drop-shadow(1px 1px 2px rgba(34,139,34,0.3));
+}
+
+.decoration-emoji.moss {
+  animation: gentle-sway 10s ease-in-out infinite;
+  filter: drop-shadow(0px 0px 2px rgba(0,100,0,0.4));
+}
+
+.rocks {
+  position: absolute;
+  bottom: 15%;
+  left: 0;
+  width: 100%;
+  height: 20%;
+  background-image: 
+    radial-gradient(ellipse 30px 15px at 15% 80%, #696969 0%, #808080 50%, transparent 70%),
+    radial-gradient(ellipse 20px 10px at 45% 90%, #696969 0%, #808080 50%, transparent 70%),
+    radial-gradient(ellipse 25px 12px at 75% 85%, #A9A9A9 0%, #C0C0C0 50%, transparent 70%),
+    radial-gradient(ellipse 35px 18px at 90% 75%, #696969 0%, #808080 50%, transparent 70%);
+  background-repeat: no-repeat;
+  opacity: 0.6;
+}
+
+.fallen-leaves {
+  position: absolute;
+  bottom: 20%;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  background-image: 
+    radial-gradient(ellipse 8px 12px at 20% 70%, rgba(255,165,0,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 6px 10px at 40% 80%, rgba(255,69,0,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 10px 14px at 65% 75%, rgba(255,140,0,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 7px 11px at 85% 85%, rgba(255,165,0,0.6) 0%, transparent 70%);
+  background-repeat: no-repeat;
+  animation: leavesRustle 8s infinite ease-in-out;
+}
+
+.flower-patches {
+  position: absolute;
+  bottom: 30%;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background-image: 
+    radial-gradient(circle 3px at 25% 60%, rgba(255,192,203,0.8) 0%, transparent 70%),
+    radial-gradient(circle 2px at 30% 65%, rgba(255,255,0,0.7) 0%, transparent 70%),
+    radial-gradient(circle 4px at 55% 70%, rgba(138,43,226,0.6) 0%, transparent 70%),
+    radial-gradient(circle 3px at 70% 55%, rgba(255,182,193,0.8) 0%, transparent 70%),
+    radial-gradient(circle 2px at 85% 68%, rgba(255,255,0,0.7) 0%, transparent 70%);
+  background-repeat: no-repeat;
+  animation: flowersGlow 6s infinite ease-in-out;
+}
+
+/* Garden Stats */
+.garden-stats {
+  display: flex;
+  gap: 30px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 15px 20px;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  backdrop-filter: blur(10px);
+  min-width: 80px;
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(0,0,0,0.15);
+}
+
+.stat-icon {
+  font-size: 1.5rem;
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #2d5016;
+  margin-bottom: 2px;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Garden Instructions */
+.garden-instructions {
+  text-align: center;
+  color: #666;
+  margin: 20px 0;
+  max-width: 600px;
+  line-height: 1.6;
+}
+
+.garden-instructions p {
+  margin: 8px 0;
+  font-size: 0.95rem;
+}
+
+/* Atmospheric Elements */
+.atmospheric-elements {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 8;
+}
+
+.floating-pollen {
+  position: absolute;
+  font-size: 0.8rem;
+  opacity: 0.6;
+  animation: float-and-sparkle 8s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(255,255,0,0.5));
+}
+
+.floating-seeds {
+  position: absolute;
+  font-size: 1.2rem;
+  opacity: 0.5;
+  animation: drift-across 12s ease-in-out infinite;
+}
+
+@keyframes float-and-sparkle {
+  0%, 100% { 
+    transform: translateY(0px) translateX(0px) scale(1);
+    opacity: 0.3;
+  }
+  25% { 
+    transform: translateY(-20px) translateX(10px) scale(1.1);
+    opacity: 0.8;
+  }
+  50% { 
+    transform: translateY(-10px) translateX(-5px) scale(0.9);
+    opacity: 0.6;
+  }
+  75% { 
+    transform: translateY(-30px) translateX(15px) scale(1.2);
+    opacity: 0.7;
+  }
+}
+
+@keyframes drift-across {
+  0% { 
+    transform: translateX(-50px) translateY(0px);
+    opacity: 0.3;
+  }
+  50% { 
+    transform: translateX(200px) translateY(-30px);
+    opacity: 0.7;
+  }
+  100% { 
+    transform: translateX(400px) translateY(-10px);
+    opacity: 0.2;
+  }
+}
+
+/* Plant Animations */
+@keyframes gentle-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-2px) rotate(1deg); }
+  50% { transform: translateY(0px) rotate(0deg); }
+  75% { transform: translateY(-1px) rotate(-1deg); }
+}
+
+@keyframes sunflower-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+  25% { transform: translateY(-3px) rotate(2deg) scale(1.02); }
+  50% { transform: translateY(0px) rotate(0deg) scale(1); }
+  75% { transform: translateY(-2px) rotate(-2deg) scale(1.01); }
+}
+
+@keyframes lavender-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-2px) rotate(1.5deg); }
+  66% { transform: translateY(-1px) rotate(-1.5deg); }
+}
+
+@keyframes lotus-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+  50% { transform: translateY(-1px) rotate(0deg) scale(1.05); }
+}
+
+@keyframes bamboo-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(3deg); }
+  50% { transform: translateY(0px) rotate(0deg); }
+  75% { transform: translateY(-2px) rotate(-3deg); }
+}
+
+@keyframes tree-sway {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-4px) rotate(2deg); }
+  50% { transform: translateY(0px) rotate(0deg); }
+  75% { transform: translateY(-3px) rotate(-2deg); }
+}
+
+/* Pet Animations */
+@keyframes flutter {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(2deg); }
+  50% { transform: translateY(0px) rotate(0deg); }
+  75% { transform: translateY(-2px) rotate(-2deg); }
+}
+
+@keyframes glow {
+  0%, 100% { 
+    filter: brightness(1) drop-shadow(0 0 5px rgba(255,215,0,0.6));
+    transform: scale(1);
+  }
+  50% { 
+    filter: brightness(1.5) drop-shadow(0 0 15px rgba(255,215,0,0.9));
+    transform: scale(1.1);
+  }
+}
+
+@keyframes fly {
+  0%, 100% { transform: translateX(0px) translateY(0px); }
+  25% { transform: translateX(5px) translateY(-2px); }
+  50% { transform: translateX(0px) translateY(-4px); }
+  75% { transform: translateX(-5px) translateY(-2px); }
+}
+
+@keyframes buzz {
+  0%, 100% { transform: translateX(0px); }
+  25% { transform: translateX(1px); }
+  50% { transform: translateX(-1px); }
+  75% { transform: translateX(1px); }
+}
+
+/* Environmental Animations */
+@keyframes cloudsFloat {
+  0% { transform: translateX(-20%); }
+  100% { transform: translateX(20%); }
+}
+
+@keyframes leavesRustle {
+  0%, 100% { transform: translateX(0px); opacity: 0.6; }
+  50% { transform: translateX(2px); opacity: 0.8; }
+}
+
+@keyframes flowersGlow {
+  0%, 100% { opacity: 0.6; filter: brightness(1); }
+  50% { opacity: 0.9; filter: brightness(1.2); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .garden-viewport {
+    width: 95vw;
+    height: 60vh;
+  }
+  
+  .garden-header h1 {
+    font-size: 2rem;
+  }
+  
+  .garden-stats {
+    gap: 15px;
+  }
+  
+  .stat-item {
+    padding: 10px 15px;
+    min-width: 60px;
+  }
+  
+  .plant-element,
+  .pet-element {
+    font-size: 0.9em !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .garden-viewport {
+    width: 98vw;
+    height: 50vh;
+  }
+  
+  .garden-header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .plant-element,
+  .pet-element {
+    font-size: 0.8em !important;
+  }
+}

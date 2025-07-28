@@ -1,0 +1,1074 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import type { GardenState, Plant, Pet } from '../types';
+import MoodMusic from './MoodMusic';
+import AdvancedEffects from './AdvancedEffects';
+import AIGardenEvolution from './AIGardenEvolution';
+import './WalkableGarden.css';
+import './CompetitionEnhancements.css';
+
+interface WalkableGardenProps {
+  gardenState: GardenState;
+  onPlantClick: (plant: Plant) => void;
+}
+
+interface PlayerPosition {
+  x: number;
+  y: number;
+}
+
+interface CameraPosition {
+  x: number;
+  y: number;
+}
+
+interface Particle {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  type: 'sparkle' | 'leaf' | 'petal' | 'firefly' | 'magic' | 'zen';
+  color: string;
+  size: number;
+}
+
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlocked: boolean;
+  progress: number;
+  maxProgress: number;
+  category: 'exploration' | 'growth' | 'social' | 'mindfulness';
+}
+
+const WalkableGarden: React.FC<WalkableGardenProps> = ({ gardenState, onPlantClick }) => {
+  const [playerPos, setPlayerPos] = useState<PlayerPosition>({ x: 50, y: 70 });
+  const [cameraPos, setCameraPos] = useState<CameraPosition>({ x: 0, y: 0 });
+  const [playerDirection, setPlayerDirection] = useState<'left' | 'right' | 'up' | 'down'>('down');
+  const [isWalking, setIsWalking] = useState(false);
+  const [keysPressed, setKeysPressed] = useState<Set<string>>(new Set());
+  const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
+  const [nearbyElements, setNearbyElements] = useState<{plants: Plant[], pets: Pet[]}>({ plants: [], pets: [] });
+  
+  // Competition-winning features
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [currentWeather, setCurrentWeather] = useState<string>(gardenState.weather);
+  const [timeOfDay, setTimeOfDay] = useState<'dawn' | 'morning' | 'afternoon' | 'evening' | 'night'>('morning');
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null);
+  const [gardenLevel, setGardenLevel] = useState(1);
+  const [totalSteps, setTotalSteps] = useState(0);
+  const [plantsDiscovered, setPlantsDiscovered] = useState<Set<string>>(new Set());
+  const [petsInteracted, setPetsInteracted] = useState<Set<string>>(new Set());
+  const [isBuilding, setIsBuilding] = useState(false);
+  const [buildingMode, setBuildingMode] = useState<'path' | 'decoration' | 'structure'>('decoration');
+  const [magicMode, setMagicMode] = useState(false);
+  const [zenModeActive, setZenModeActive] = useState(false);
+  const [timeSpentInGarden, setTimeSpentInGarden] = useState(0);
+
+  // Garden world dimensions (massive for exploration)
+  const WORLD_WIDTH = 600;
+  const WORLD_HEIGHT = 400;
+  const VIEWPORT_WIDTH = 100;
+  const VIEWPORT_HEIGHT = 60;
+  const MOVE_SPEED = 0.8;
+
+  // Initialize achievements
+  useEffect(() => {
+    const initialAchievements: Achievement[] = [
+      {
+        id: 'first_steps',
+        title: 'Garden Explorer',
+        description: 'Take your first steps in the garden',
+        icon: '👣',
+        unlocked: false,
+        progress: 0,
+        maxProgress: 10,
+        category: 'exploration'
+      },
+      {
+        id: 'plant_whisperer',
+        title: 'Plant Whisperer',
+        description: 'Discover 5 different types of plants',
+        icon: '🌱',
+        unlocked: false,
+        progress: 0,
+        maxProgress: 5,
+        category: 'growth'
+      },
+      {
+        id: 'creature_friend',
+        title: 'Creature Friend',
+        description: 'Interact with all types of garden creatures',
+        icon: '🦋',
+        unlocked: false,
+        progress: 0,
+        maxProgress: 4,
+        category: 'social'
+      },
+      {
+        id: 'zen_master',
+        title: 'Zen Master',
+        description: 'Spend 5 minutes in meditation mode',
+        icon: '🧘‍♀️',
+        unlocked: false,
+        progress: 0,
+        maxProgress: 300,
+        category: 'mindfulness'
+      },
+      {
+        id: 'garden_architect',
+        title: 'Garden Architect',
+        description: 'Build 10 decorative elements',
+        icon: '🏗️',
+        unlocked: false,
+        progress: 0,
+        maxProgress: 10,
+        category: 'exploration'
+      },
+      {
+        id: 'marathon_walker',
+        title: 'Marathon Walker',
+        description: 'Take 1000 steps in your garden',
+        icon: '🏃‍♀️',
+        unlocked: false,
+        progress: 0,
+        maxProgress: 1000,
+        category: 'exploration'
+      }
+    ];
+    setAchievements(initialAchievements);
+  }, []);
+
+  // Track time spent in garden
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeSpentInGarden(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [playerPos]);
+
+  // Handle AI evolution events
+  const handleEvolutionEvent = useCallback((event: any) => {
+    switch (event.type) {
+      case 'new_plant':
+        // In a real app, this would add a new plant to the garden state
+        console.log('New plant evolved:', event.data.type);
+        break;
+      case 'new_pet':
+        // In a real app, this would add a new pet to the garden state
+        console.log('New pet appeared:', event.data.type);
+        break;
+      case 'weather_change':
+        setCurrentWeather(event.data.type);
+        break;
+      case 'special_event':
+        // Create special celebration particles
+        for (let i = 0; i < 50; i++) {
+          createParticle(
+            playerPos.x + (Math.random() - 0.5) * 40,
+            playerPos.y + (Math.random() - 0.5) * 40,
+            'sparkle',
+            '#FFD700'
+          );
+        }
+        break;
+    }
+    
+    // Show evolution message
+    if (event.message) {
+      const evolutionModal = document.createElement('div');
+      evolutionModal.className = 'evolution-notification';
+      evolutionModal.innerHTML = `
+        <div class="evolution-content">
+          <div class="evolution-icon">🌟</div>
+          <div class="evolution-message">${event.message}</div>
+        </div>
+      `;
+      document.body.appendChild(evolutionModal);
+      
+      setTimeout(() => {
+        if (evolutionModal.parentNode) {
+          evolutionModal.remove();
+        }
+      }, 5000);
+    }
+  }, [playerPos, setCurrentWeather]);
+
+  // Dynamic time of day system
+  useEffect(() => {
+    const updateTimeOfDay = () => {
+      const hour = new Date().getHours();
+      if (hour >= 5 && hour < 8) setTimeOfDay('dawn');
+      else if (hour >= 8 && hour < 12) setTimeOfDay('morning');
+      else if (hour >= 12 && hour < 17) setTimeOfDay('afternoon');
+      else if (hour >= 17 && hour < 20) setTimeOfDay('evening');
+      else setTimeOfDay('night');
+    };
+
+    updateTimeOfDay();
+    const interval = setInterval(updateTimeOfDay, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Particle system
+  const createParticle = useCallback((x: number, y: number, type: Particle['type'], color?: string) => {
+    const particle: Particle = {
+      id: Math.random().toString(36).substr(2, 9),
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 2,
+      vy: (Math.random() - 0.5) * 2,
+      life: 0,
+      maxLife: 60 + Math.random() * 60,
+      type,
+      color: color || '#FFD700',
+      size: 2 + Math.random() * 4
+    };
+    
+    setParticles(prev => [...prev, particle]);
+  }, []);
+
+  // Update particles
+  useEffect(() => {
+    const updateParticles = () => {
+      setParticles(prev => prev
+        .map(particle => ({
+          ...particle,
+          x: particle.x + particle.vx,
+          y: particle.y + particle.vy,
+          life: particle.life + 1,
+          vy: particle.vy + 0.05 // gravity
+        }))
+        .filter(particle => particle.life < particle.maxLife)
+      );
+    };
+
+    const interval = setInterval(updateParticles, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Achievement checking
+  const checkAchievements = useCallback(() => {
+    setAchievements(prev => prev.map(achievement => {
+      let newProgress = achievement.progress;
+      let unlocked = achievement.unlocked;
+
+      switch (achievement.id) {
+        case 'first_steps':
+          newProgress = Math.min(totalSteps, achievement.maxProgress);
+          break;
+        case 'plant_whisperer':
+          newProgress = Math.min(plantsDiscovered.size, achievement.maxProgress);
+          break;
+        case 'creature_friend':
+          newProgress = Math.min(petsInteracted.size, achievement.maxProgress);
+          break;
+        case 'marathon_walker':
+          newProgress = Math.min(totalSteps, achievement.maxProgress);
+          break;
+      }
+
+      if (newProgress >= achievement.maxProgress && !unlocked) {
+        unlocked = true;
+        setUnlockedAchievement(achievement);
+        // Create celebration particles
+        for (let i = 0; i < 20; i++) {
+          createParticle(
+            playerPos.x + (Math.random() - 0.5) * 20,
+            playerPos.y + (Math.random() - 0.5) * 20,
+            'sparkle',
+            '#FFD700'
+          );
+        }
+        setTimeout(() => setUnlockedAchievement(null), 4000);
+      }
+
+      return { ...achievement, progress: newProgress, unlocked };
+    }));
+  }, [totalSteps, plantsDiscovered.size, petsInteracted.size, createParticle, playerPos]);
+
+  useEffect(() => {
+    checkAchievements();
+  }, [checkAchievements]);
+
+  // Enhanced plant interaction with achievements
+  const handlePlantInteraction = (plant: Plant) => {
+    setSelectedPlant(plant);
+    onPlantClick(plant);
+    
+    // Track discovery
+    setPlantsDiscovered(prev => new Set(prev.add(plant.type)));
+    
+    // Create magical particles
+    for (let i = 0; i < 10; i++) {
+      createParticle(
+        plant.position.x + (Math.random() - 0.5) * 10,
+        plant.position.y + (Math.random() - 0.5) * 10,
+        'magic',
+        '#32CD32'
+      );
+    }
+  };
+
+  // Enhanced pet interaction
+  const handlePetInteraction = (pet: Pet) => {
+    setPetsInteracted(prev => new Set(prev.add(pet.type)));
+    
+    // Create themed particles
+    const colors = {
+      butterfly: '#FF69B4',
+      firefly: '#FFFF00',
+      bird: '#87CEEB',
+      bee: '#FFD700'
+    };
+    
+    for (let i = 0; i < 8; i++) {
+      createParticle(
+        pet.position.x + (Math.random() - 0.5) * 8,
+        pet.position.y + (Math.random() - 0.5) * 8,
+        'sparkle',
+        colors[pet.type as keyof typeof colors]
+      );
+    }
+
+    const petMessages = {
+      'butterfly': [
+        '🦋 "Your garden radiates such positive energy! I can feel your inner growth."',
+        '🦋 "Like my transformation, you too are becoming something beautiful."',
+        '🦋 "Dance with change, dear friend. It leads to wonderful places."'
+      ],
+      'firefly': [
+        '✨ "Your creativity illuminates this entire garden! Keep shining."',
+        '✨ "In the darkest moments, we create our own light. You understand this."',
+        '✨ "I see sparks of inspiration wherever you walk. What will you create next?"'
+      ],
+      'bird': [
+        '🐦 "Your peaceful presence brings harmony to our garden sanctuary."',
+        '🐦 "True freedom comes from inner peace. I see that wisdom growing in you."',
+        '🐦 "I carry messages of hope across the sky. What message would you send?"'
+      ],
+      'bee': [
+        '🐝 "Your dedication to growth helps our entire ecosystem flourish!"',
+        '🐝 "Like me, you understand that small, consistent actions create big changes."',
+        '🐝 "The garden buzzes with life because of gardeners like you. Thank you."'
+      ]
+    };
+
+    const messages = petMessages[pet.type as keyof typeof petMessages] || ['🐾 "Thank you for walking mindfully through our shared space."'];
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    
+    showEnhancedPetModal(pet, randomMessage);
+  };
+
+  const showEnhancedPetModal = (pet: Pet, message: string) => {
+    const modal = document.createElement('div');
+    modal.className = 'enhanced-pet-modal';
+    modal.innerHTML = `
+      <div class="enhanced-pet-content">
+        <div class="pet-avatar-large">${getPetEmoji(pet.type)}</div>
+        <div class="pet-name">${pet.type.charAt(0).toUpperCase() + pet.type.slice(1)} Friend</div>
+        <div class="pet-message-enhanced">${message}</div>
+        <div class="mood-boost">+5 Serenity Points ✨</div>
+        <button class="close-enhanced" onclick="this.parentElement.parentElement.remove()">🙏 Continue Your Journey</button>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    setTimeout(() => {
+      if (modal.parentNode) {
+        modal.remove();
+      }
+    }, 8000);
+  };
+
+  // Enhanced movement with step tracking
+  useEffect(() => {
+    if (keysPressed.size === 0) {
+      setIsWalking(false);
+      return;
+    }
+
+    setIsWalking(true);
+    const interval = setInterval(() => {
+      setPlayerPos(prevPos => {
+        let newX = prevPos.x;
+        let newY = prevPos.y;
+        let newDirection = playerDirection;
+
+        // Horizontal movement
+        if (keysPressed.has('a') || keysPressed.has('arrowleft')) {
+          newX = Math.max(5, prevPos.x - MOVE_SPEED);
+          newDirection = 'left';
+        }
+        if (keysPressed.has('d') || keysPressed.has('arrowright')) {
+          newX = Math.min(WORLD_WIDTH - 5, prevPos.x + MOVE_SPEED);
+          newDirection = 'right';
+        }
+
+        // Vertical movement
+        if (keysPressed.has('w') || keysPressed.has('arrowup')) {
+          newY = Math.max(5, prevPos.y - MOVE_SPEED);
+          newDirection = 'up';
+        }
+        if (keysPressed.has('s') || keysPressed.has('arrowdown')) {
+          newY = Math.min(WORLD_HEIGHT - 5, prevPos.y + MOVE_SPEED);
+          newDirection = 'down';
+        }
+
+        // Track steps
+        const moved = newX !== prevPos.x || newY !== prevPos.y;
+        if (moved) {
+          setTotalSteps(prev => prev + 1);
+          
+          // Create walking particles occasionally
+          if (Math.random() < 0.1) {
+            createParticle(prevPos.x, prevPos.y + 2, 'leaf', '#90EE90');
+          }
+        }
+
+        if (newDirection !== playerDirection) {
+          setPlayerDirection(newDirection);
+        }
+
+        return { x: newX, y: newY };
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [keysPressed, playerDirection, createParticle]);
+
+  // Weather system with visual effects
+  const getWeatherEffects = () => {
+    const effects = [];
+    
+    if (currentWeather === 'rainy') {
+      for (let i = 0; i < 50; i++) {
+        effects.push(
+          <div
+            key={`rain-${i}`}
+            className="rain-drop"
+            style={{
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 2}s`,
+              animationDuration: `${0.5 + Math.random() * 0.5}s`
+            }}
+          />
+        );
+      }
+    }
+    
+    if (currentWeather === 'snowy') {
+      for (let i = 0; i < 30; i++) {
+        effects.push(
+          <div
+            key={`snow-${i}`}
+            className="snow-flake"
+            style={{
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 3}s`,
+              animationDuration: `${2 + Math.random() * 2}s`
+            }}
+          >
+            ❄️
+          </div>
+        );
+      }
+    }
+
+    return effects;
+  };
+
+  // Time of day lighting
+  const getTimeOfDayFilter = () => {
+    const filters = {
+      dawn: 'brightness(0.8) sepia(0.3) hue-rotate(20deg)',
+      morning: 'brightness(1.1) contrast(1.1)',
+      afternoon: 'brightness(1.2) contrast(1.2)',
+      evening: 'brightness(0.9) sepia(0.4) hue-rotate(10deg)',
+      night: 'brightness(0.4) contrast(1.3) hue-rotate(220deg)'
+    };
+    return filters[timeOfDay];
+  };
+
+  // Garden level progression
+  useEffect(() => {
+    const newLevel = Math.floor(totalSteps / 100) + 1;
+    if (newLevel > gardenLevel) {
+      setGardenLevel(newLevel);
+      // Level up celebration
+      for (let i = 0; i < 30; i++) {
+        createParticle(
+          playerPos.x + (Math.random() - 0.5) * 30,
+          playerPos.y + (Math.random() - 0.5) * 30,
+          'sparkle',
+          '#FF69B4'
+        );
+      }
+    }
+  }, [totalSteps, gardenLevel, createParticle, playerPos]);
+
+  // Rest of the component code continues...
+  // (I'll implement the remaining features in the next part)
+
+  const getPetEmoji = (petType: string): string => {
+    const emojiMap: { [key: string]: string } = {
+      'butterfly': '🦋',
+      'firefly': '✨',
+      'bird': '🐦',
+      'bee': '🐝'
+    };
+    return emojiMap[petType] || '🐾';
+  };
+
+  const getPlantEmoji = (plant: Plant): string => {
+    const plantEmojis: { [key: string]: { [key: string]: string } } = {
+      'sunflower': { sprout: '🌱', growing: '🌿', blooming: '🌻', mature: '🌻' },
+      'lavender': { sprout: '🌱', growing: '🌿', blooming: '🪻', mature: '🪻' },
+      'lotus': { sprout: '🌱', growing: '🌿', blooming: '🪷', mature: '🪷' },
+      'bamboo': { sprout: '🌱', growing: '🎋', blooming: '🎋', mature: '🎋' },
+      'aloe': { sprout: '🌱', growing: '🌿', blooming: '🌿', mature: '🪴' },
+      'willow': { sprout: '🌱', growing: '🌿', blooming: '🌲', mature: '🌲' },
+      'chamomile': { sprout: '🌱', growing: '🌿', blooming: '🌼', mature: '🌼' },
+      'cactus': { sprout: '🌱', growing: '🌿', blooming: '🌵', mature: '🌵' }
+    };
+
+    return plantEmojis[plant.type]?.[plant.stage] || '🌱';
+  };
+
+  const getPlayerSprite = (): string => {
+    const walking = isWalking ? 'walking' : 'idle';
+    const sprites = {
+      up: { idle: '🚶‍♀️', walking: '🚶‍♀️' },
+      down: { idle: '🧍‍♀️', walking: '🚶‍♀️' },
+      left: { idle: '🧍‍♀️', walking: '🚶‍♀️' },
+      right: { idle: '🧍‍♂️', walking: '🚶‍♂️' }
+    };
+    
+    return sprites[playerDirection][walking];
+  };
+
+  const getWeatherBackground = (weather: string): string => {
+    const backgrounds = {
+      'sunny': 'linear-gradient(to bottom, #87CEEB 0%, #98FB98 40%, #90EE90 70%, #228B22 100%)',
+      'rainy': 'linear-gradient(to bottom, #708090 0%, #778899 30%, #87CEEB 60%, #98FB98 100%)',
+      'cloudy': 'linear-gradient(to bottom, #B0C4DE 0%, #D3D3D3 30%, #E0E0E0 60%, #98FB98 100%)',
+      'misty': 'linear-gradient(to bottom, #F5F5F5 0%, #E6E6FA 30%, #F0F8FF 60%, #E8F5E8 100%)',
+      'sunset': 'linear-gradient(to bottom, #FF6347 0%, #FFD700 30%, #FF8C00 60%, #228B22 100%)'
+    };
+    return backgrounds[weather as keyof typeof backgrounds] || backgrounds['sunny'];
+  };
+
+  // Enhanced keyboard controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+        e.preventDefault();
+        setKeysPressed(prev => new Set(prev).add(key));
+      }
+      
+      // Enhanced interactions
+      if (key === 'e' || key === 'enter') {
+        if (nearbyElements.plants.length > 0) {
+          handlePlantInteraction(nearbyElements.plants[0]);
+        } else if (nearbyElements.pets.length > 0) {
+          handlePetInteraction(nearbyElements.pets[0]);
+        }
+      }
+
+      // New hotkeys
+      if (key === 'm') {
+        setMagicMode(!magicMode);
+      }
+      if (key === 'z') {
+        setZenModeActive(!zenModeActive);
+      }
+      if (key === 'b') {
+        setIsBuilding(!isBuilding);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      setKeysPressed(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [nearbyElements, magicMode, zenModeActive, isBuilding]);
+
+  // Check for nearby interactive elements
+  const checkNearbyElements = useCallback(() => {
+    const INTERACTION_DISTANCE = 8;
+    
+    const nearbyPlants = gardenState.plants.filter(plant => {
+      const distance = Math.sqrt(
+        Math.pow(plant.position.x - playerPos.x, 2) + 
+        Math.pow(plant.position.y - playerPos.y, 2)
+      );
+      return distance < INTERACTION_DISTANCE;
+    });
+
+    const nearbyPets = gardenState.pets.filter(pet => {
+      const distance = Math.sqrt(
+        Math.pow(pet.position.x - playerPos.x, 2) + 
+        Math.pow(pet.position.y - playerPos.y, 2)
+      );
+      return distance < INTERACTION_DISTANCE;
+    });
+
+    setNearbyElements({ plants: nearbyPlants, pets: nearbyPets });
+  }, [playerPos, gardenState.plants, gardenState.pets]);
+
+  // Update camera to follow player
+  useEffect(() => {
+    const newCameraX = Math.max(0, Math.min(playerPos.x - VIEWPORT_WIDTH / 2, WORLD_WIDTH - VIEWPORT_WIDTH));
+    const newCameraY = Math.max(0, Math.min(playerPos.y - VIEWPORT_HEIGHT / 2, WORLD_HEIGHT - VIEWPORT_HEIGHT));
+    setCameraPos({ x: newCameraX, y: newCameraY });
+    checkNearbyElements();
+  }, [playerPos, checkNearbyElements]);
+
+  return (
+    <div className={`walkable-garden ${zenModeActive ? 'zen-mode' : ''} ${magicMode ? 'magic-mode' : ''}`}>
+      {/* AI Garden Evolution System */}
+      <AIGardenEvolution
+        totalSteps={totalSteps}
+        plantsDiscovered={plantsDiscovered}
+        petsInteracted={petsInteracted}
+        achievements={achievements}
+        timeSpentInGarden={timeSpentInGarden}
+        onEvolutionEvent={handleEvolutionEvent}
+      />
+
+      {/* Enhanced UI with competition features */}
+      <div className="competition-ui">
+        <div className="garden-header-enhanced">
+          <div className="title-section">
+            <h1>🌿 Serenity Garden Sanctuary 🌿</h1>
+            <div className="garden-level">Level {gardenLevel} Garden ✨</div>
+          </div>
+          
+          <div className="status-panel">
+            <div className="weather-time">
+              <span className="weather-indicator">
+                {getWeatherEmoji(currentWeather)} {currentWeather}
+              </span>
+              <span className="time-indicator">
+                {getTimeOfDayEmoji(timeOfDay)} {timeOfDay}
+              </span>
+            </div>
+            
+            <div className="mode-indicators">
+              {magicMode && <span className="mode-active">🌟 Magic Mode</span>}
+              {zenModeActive && <span className="mode-active">🧘‍♀️ Zen Mode</span>}
+              {isBuilding && <span className="mode-active">🏗️ Building Mode</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="enhanced-controls">
+          <div className="control-group">
+            <span className="control-label">Movement:</span>
+            <span className="control-keys">WASD / Arrow Keys</span>
+          </div>
+          <div className="control-group">
+            <span className="control-label">Interact:</span>
+            <span className="control-keys">E</span>
+          </div>
+          <div className="control-group">
+            <span className="control-label">Magic:</span>
+            <span className="control-keys">M</span>
+          </div>
+          <div className="control-group">
+            <span className="control-label">Zen:</span>
+            <span className="control-keys">Z</span>
+          </div>
+          <div className="control-group">
+            <span className="control-label">Build:</span>
+            <span className="control-keys">B</span>
+          </div>
+          
+          {nearbyElements.plants.length > 0 && (
+            <div className="interaction-hint-enhanced">
+              🌱 Press E to commune with {nearbyElements.plants[0].type}
+            </div>
+          )}
+          {nearbyElements.pets.length > 0 && (
+            <div className="interaction-hint-enhanced">
+              ✨ Press E to connect with {nearbyElements.pets[0].type}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Weather effects overlay */}
+      <div className="weather-effects">
+        {getWeatherEffects()}
+      </div>
+
+      {/* Main garden viewport */}
+      <div 
+        className="garden-viewport"
+        style={{
+          filter: getTimeOfDayFilter(),
+          background: getWeatherBackground(currentWeather),
+          transform: `translate(-${cameraPos.x}%, -${cameraPos.y}%)`
+        }}
+      >
+        {/* Garden world container */}
+        <div 
+          className="garden-world"
+          style={{
+            width: `${WORLD_WIDTH}%`,
+            height: `${WORLD_HEIGHT}%`,
+            position: 'relative'
+          }}
+        >
+          {/* Background layers for depth */}
+          <div className="background-layer mountains">
+            <div className="mountain" style={{ left: '10%', top: '5%' }}>🏔️</div>
+            <div className="mountain" style={{ left: '60%', top: '8%' }}>⛰️</div>
+            <div className="mountain" style={{ left: '85%', top: '6%' }}>🏔️</div>
+          </div>
+
+          <div className="background-layer clouds">
+            <div className="cloud" style={{ left: '20%', top: '15%' }}>☁️</div>
+            <div className="cloud" style={{ left: '70%', top: '12%' }}>☁️</div>
+            <div className="cloud" style={{ left: '45%', top: '18%' }}>☁️</div>
+          </div>
+
+          {/* Enhanced landscape elements */}
+          <div className="landscape-elements">
+            {/* Magical ponds with reflections */}
+            <div className="pond magical-pond" style={{ left: '15%', top: '30%' }}>
+              <div className="pond-surface">🌊✨</div>
+              <div className="pond-reflection">🌸🌿</div>
+            </div>
+            <div className="pond enchanted-pond" style={{ left: '70%', top: '60%' }}>
+              <div className="pond-surface">💫🌊</div>
+              <div className="pond-reflection">🦋🌺</div>
+            </div>
+
+            {/* Mystical pathways */}
+            <div className="path-system">
+              <div className="magic-path primary-path"></div>
+              <div className="magic-path secondary-path"></div>
+              <div className="magic-path tertiary-path"></div>
+            </div>
+
+            {/* Ancient trees with personality */}
+            <div className="ancient-tree" style={{ left: '25%', top: '20%' }}>
+              <div className="tree-trunk">🌳</div>
+              <div className="tree-aura">✨</div>
+              <div className="tree-wisdom">🦉</div>
+            </div>
+            <div className="ancient-tree" style={{ left: '80%', top: '35%' }}>
+              <div className="tree-trunk">🌲</div>
+              <div className="tree-aura">🌟</div>
+              <div className="tree-wisdom">🐿️</div>
+            </div>
+
+            {/* Meditation circles */}
+            <div className="meditation-circle" style={{ left: '40%', top: '45%' }}>
+              <div className="circle-stones">🪨🪨🪨</div>
+              <div className="circle-center">🧘‍♀️</div>
+              <div className="circle-energy">✨💫✨</div>
+            </div>
+
+            {/* Flower meadows */}
+            <div className="flower-meadow" style={{ left: '10%', top: '70%' }}>
+              🌼🌺🌸🌻🌷🌹💐🌼🌺🌸
+            </div>
+            <div className="flower-meadow" style={{ left: '50%', top: '75%' }}>
+              🌷🌸🌺🌼🌻🌹💐🌷🌸🌺
+            </div>
+
+            {/* Zen gardens */}
+            <div className="zen-garden" style={{ left: '60%', top: '25%' }}></div>
+              <div className="zen-sand">🟫</div>
+              <div className="zen-rocks">🪨⚪🪨</div>
+              <div className="zen-rake-pattern">〰️〰️〰️</div>
+            </div>
+          </div>
+
+          {/* Enhanced plants with magical effects */}
+          {gardenState.plants.map(plant => {
+            // Calculate health level based on plant age and stage
+            const plantAge = plant.plantedAt ? Math.floor((Date.now() - new Date(plant.plantedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+            const healthLevel = Math.min(1, Math.max(0.3, 1 - (plantAge * 0.01))); // Health decreases slightly over time
+            
+            return (
+              <div
+                key={plant.id}
+                className={`plant-container enhanced-plant ${magicMode ? 'magic-enhanced' : ''}`}
+                style={{
+                  left: `${plant.position.x}%`,
+                  top: `${plant.position.y}%`,
+                  filter: healthLevel > 0.8 ? 'brightness(1.2) drop-shadow(0 0 10px #32CD32)' : 'none'
+                }}
+                onClick={() => handlePlantInteraction(plant)}
+              >
+                <div className="plant-emoji">{getPlantEmoji(plant)}</div>
+                <div className="plant-aura">
+                  {healthLevel > 0.9 && <span className="plant-sparkle">✨</span>}
+                  {plant.stage === 'blooming' && <span className="bloom-glow">🌟</span>}
+                </div>
+                <div className="plant-health-indicator">
+                  <div 
+                    className="health-bar"
+                    style={{ width: `${healthLevel * 100}%` }}
+                  ></div>
+                </div>
+                {nearbyElements.plants.includes(plant) && (
+                  <div className="interaction-glow">💫</div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Enhanced animated pets with AI personalities */}
+          {gardenState.pets.map(pet => (
+            <div
+              key={pet.id}
+              className={`pet-container enhanced-pet ${pet.type}-pet`}
+              style={{
+                left: `${pet.position.x}%`,
+                top: `${pet.position.y}%`,
+                animation: `float-${pet.type} 3s infinite ease-in-out`
+              }}
+              onClick={() => handlePetInteraction(pet)}
+            >
+              <div className="pet-emoji">{getPetEmoji(pet.type)}</div>
+              <div className="pet-trail">
+                {pet.type === 'firefly' && <span className="firefly-trail">✨</span>}
+                {pet.type === 'butterfly' && <span className="butterfly-trail">🌸</span>}
+                {pet.type === 'bird' && <span className="bird-trail">🎵</span>}
+                {pet.type === 'bee' && <span className="bee-trail">🍯</span>}
+              </div>
+              {nearbyElements.pets.includes(pet) && (
+                <div className="pet-interaction-aura">💖</div>
+              )}
+            </div>
+          ))}
+
+          {/* Player character with enhanced visuals */}
+          <div
+            className={`player-character enhanced-player ${playerDirection} ${isWalking ? 'walking' : 'idle'} ${magicMode ? 'magic-player' : ''} ${zenModeActive ? 'zen-player' : ''}`}
+            style={{
+              left: `${playerPos.x}%`,
+              top: `${playerPos.y}%`
+            }}
+          >
+            <div className="player-sprite">{getPlayerSprite()}</div>
+            <div className="player-aura">
+              {magicMode && <span className="magic-aura">🌟✨🌟</span>}
+              {zenModeActive && <span className="zen-aura">🧘‍♀️💫🧘‍♀️</span>}
+            </div>
+            <div className="player-shadow"></div>
+          </div>
+
+          {/* Advanced effects layer */}
+          <AdvancedEffects
+            isActive={true}
+            playerPosition={playerPos}
+            weatherType={currentWeather}
+            timeOfDay={timeOfDay}
+            magicMode={magicMode}
+            zenMode={zenModeActive}
+          />
+
+          {/* Particle effects */}
+          {particles.map(particle => (
+            <div
+              key={particle.id}
+              className={`particle particle-${particle.type}`}
+              style={{
+                left: `${particle.x}%`,
+                top: `${particle.y}%`,
+                backgroundColor: particle.color,
+                width: `${particle.size}px`,
+                height: `${particle.size}px`,
+                opacity: 1 - (particle.life / particle.maxLife)
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Enhanced stats panel */}
+      <div className="enhanced-stats-panel">
+        <div className="stat-group">
+          <div className="stat-item">
+            <span className="stat-icon">👣</span>
+            <span className="stat-value">{totalSteps}</span>
+            <span className="stat-label">Steps</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-icon">🌱</span>
+            <span className="stat-value">{plantsDiscovered.size}</span>
+            <span className="stat-label">Plants</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-icon">🦋</span>
+            <span className="stat-value">{petsInteracted.size}</span>
+            <span className="stat-label">Friends</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-icon">🏆</span>
+            <span className="stat-value">{achievements.filter(a => a.unlocked).length}</span>
+            <span className="stat-label">Achievements</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Achievement notification */}
+      {unlockedAchievement && (
+        <div className="achievement-notification">
+          <div className="achievement-content">
+            <div className="achievement-icon">{unlockedAchievement.icon}</div>
+            <div className="achievement-text">
+              <div className="achievement-title">Achievement Unlocked!</div>
+              <div className="achievement-name">{unlockedAchievement.title}</div>
+              <div className="achievement-desc">{unlockedAchievement.description}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced plant modal */}
+      {selectedPlant && (
+        <div className="enhanced-plant-modal" onClick={() => setSelectedPlant(null)}>
+          <div className="enhanced-plant-content" onClick={(e) => e.stopPropagation()}>
+            <div className="plant-header-enhanced">
+              <div className="plant-avatar-large">{getPlantEmoji(selectedPlant)}</div>
+              <div className="plant-info-enhanced">
+                <h3>{selectedPlant.type.charAt(0).toUpperCase() + selectedPlant.type.slice(1)}</h3>
+                <div className="plant-stage-enhanced">{selectedPlant.stage}</div>
+                <div className="plant-age">Age: {selectedPlant.plantedAt ? Math.floor((Date.now() - new Date(selectedPlant.plantedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0} days</div>
+              </div>
+            </div>
+            
+            <div className="plant-wisdom">
+              <h4>🌿 Plant Wisdom</h4>
+              <p>{getPlantWisdom(selectedPlant.type, selectedPlant.stage)}</p>
+            </div>
+            
+            <div className="plant-care-enhanced">
+              <div className="care-stat">
+                <span className="care-label">Health:</span>
+                <div className="care-bar">
+                  <div 
+                    className="care-fill health-fill"
+                    style={{ 
+                      width: `${Math.min(1, Math.max(0.3, 1 - ((selectedPlant.plantedAt ? Math.floor((Date.now() - new Date(selectedPlant.plantedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0) * 0.01))) * 100}%` 
+                    }}
+                  ></div>
+                </div>
+                <span className="care-value">{Math.round(Math.min(1, Math.max(0.3, 1 - ((selectedPlant.plantedAt ? Math.floor((Date.now() - new Date(selectedPlant.plantedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0) * 0.01))) * 100)}%</span>
+              </div>
+            </div>
+            
+            <div className="plant-actions-enhanced">
+              <button className="action-btn nurture-btn">
+                🤲 Send Love & Light
+              </button>
+              <button className="action-btn meditate-btn">
+                🧘‍♀️ Meditate Together
+              </button>
+              <button className="action-btn close-btn" onClick={() => setSelectedPlant(null)}>
+                🙏 Continue Journey
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Music component for enhanced atmosphere */}
+      <MoodMusic weather={gardenState.weather} pets={gardenState.pets} plantsCount={gardenState.plants.length} />
+    </div>
+  );
+};
+
+// Helper functions
+const getWeatherEmoji = (weather: string): string => {
+  const emojiMap: { [key: string]: string } = {
+    'sunny': '☀️',
+    'rainy': '🌧️',
+    'cloudy': '☁️',
+    'misty': '🌫️',
+    'sunset': '🌅',
+    'snowy': '❄️'
+  };
+  return emojiMap[weather] || '☀️';
+};
+
+const getTimeOfDayEmoji = (timeOfDay: string): string => {
+  const emojiMap: { [key: string]: string } = {
+    'dawn': '🌅',
+    'morning': '🌄',
+    'afternoon': '☀️',
+    'evening': '🌇',
+    'night': '🌙'
+  };
+  return emojiMap[timeOfDay] || '☀️';
+};
+
+const getPlantWisdom = (plantType: string, stage: string): string => {
+  const wisdom: { [key: string]: { [key: string]: string } } = {
+    'sunflower': {
+      'seed': 'Like you, I begin small but dream of touching the sky. Trust in your potential.',
+      'sprout': 'I teach you to always turn toward the light, even in darkness.',
+      'growing': 'My growth mirrors your journey - steady, purposeful, reaching ever upward.',
+      'blooming': 'See how I shine? Your inner light can brighten the whole world.',
+      'mature': 'Standing tall through storms, I show you the power of resilience and joy.'
+    },
+    'lavender': {
+      'seed': 'In stillness, I prepare to bring peace to the world, just as you do.',
+      'sprout': 'My essence teaches that healing begins with self-compassion.',
+      'growing': 'Breathe deeply - I am learning to give the gift of calm to all who need it.',
+      'blooming': 'My fragrance soothes hearts. May your presence bring the same peace.',
+      'mature': 'Like fine wine, wisdom and serenity deepen with time and experience.'
+    },
+    'lotus': {
+      'seed': 'From the muddy depths, beauty emerges. Your struggles nurture your growth.',
+      'sprout': 'I rise through murky water toward light, showing that purity comes from within.',
+      'growing': 'My journey proves that our environment doesn\'t define our destiny.',
+      'blooming': 'Behold perfect beauty from imperfect circumstances - this is the nature of growth.',
+      'mature': 'In full bloom, I represent the triumph of spirit over circumstance.'
+    },
+    'bamboo': {
+      'seed': 'My strength comes from flexibility. Learn to bend without breaking.',
+      'sprout': 'Connected to my community, I grow faster when surrounded by others.',
+      'growing': 'Each segment of my growth represents a lesson learned, a challenge overcome.',
+      'blooming': 'My rapid growth teaches that progress can happen quickly when conditions are right.',
+      'mature': 'Hollow yet strong, I show that space for growth exists within emptiness.'
+    }
+  };
+
+  const defaultWisdom = {
+    'seed': 'Every great journey begins with a single step, a moment of faith.',
+    'sprout': 'Young growth requires patience, care, and trust in the process.',
+    'growing': 'This is the season of becoming. Embrace the stretch toward your potential.',
+    'blooming': 'Your beauty and gifts are meant to be shared with the world.',
+    'mature': 'Wisdom comes from seasons of growth, weather, and deep rooting.'
+  };
+
+  return wisdom[plantType]?.[stage] || defaultWisdom[stage as keyof typeof defaultWisdom] || 'Growth is a sacred journey of becoming.';
+};
+
+export default WalkableGarden;

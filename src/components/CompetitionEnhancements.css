@@ -1,0 +1,1083 @@
+/* Competition-Winning Enhancements CSS */
+
+/* Enhanced UI Design */
+.competition-ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2000;
+  background: linear-gradient(135deg, 
+    rgba(0, 0, 0, 0.8) 0%, 
+    rgba(34, 139, 34, 0.3) 50%, 
+    rgba(0, 0, 0, 0.8) 100%
+  );
+  backdrop-filter: blur(15px);
+  border-bottom: 2px solid rgba(255, 215, 0, 0.3);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+.garden-header-enhanced {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  background: linear-gradient(90deg, 
+    rgba(34, 139, 34, 0.1) 0%, 
+    rgba(255, 215, 0, 0.1) 50%, 
+    rgba(34, 139, 34, 0.1) 100%
+  );
+}
+
+.title-section h1 {
+  background: linear-gradient(45deg, #32CD32, #FFD700, #32CD32);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-text 3s ease-in-out infinite;
+  font-size: 2.2rem;
+  margin: 0;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+  font-weight: bold;
+}
+
+.garden-level {
+  background: linear-gradient(45deg, #FFD700, #FFA500);
+  color: #333;
+  padding: 6px 15px;
+  border-radius: 20px;
+  font-weight: bold;
+  margin-top: 5px;
+  display: inline-block;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.weather-time {
+  display: flex;
+  gap: 15px;
+}
+
+.weather-indicator,
+.time-indicator {
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  padding: 8px 16px;
+  border-radius: 25px;
+  font-weight: bold;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 215, 0, 0.3);
+}
+
+.mode-indicators {
+  display: flex;
+  gap: 10px;
+}
+
+.mode-active {
+  background: linear-gradient(45deg, #FF69B4, #FFD700);
+  color: #333;
+  padding: 6px 12px;
+  border-radius: 15px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  animation: mode-pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(255, 105, 180, 0.5);
+}
+
+.enhanced-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 25px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 215, 0, 0.2);
+  flex-wrap: wrap;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-label {
+  color: #FFD700;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.control-keys {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.interaction-hint-enhanced {
+  background: linear-gradient(45deg, #32CD32, #90EE90);
+  color: #333;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: bold;
+  animation: interaction-glow 2s ease-in-out infinite;
+  box-shadow: 0 0 15px rgba(50, 205, 50, 0.4);
+  margin-left: auto;
+}
+
+/* Advanced Particle Effects */
+.particle {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  animation: particle-float 2s ease-out forwards;
+  z-index: 1500;
+}
+
+.particle-sparkle {
+  background: radial-gradient(circle, #FFD700, transparent);
+  box-shadow: 0 0 10px #FFD700, 0 0 20px #FFD700, 0 0 30px #FFD700;
+  animation: sparkle-twinkle 1s ease-in-out infinite;
+}
+
+.particle-magic {
+  background: radial-gradient(circle, #FF69B4, #9370DB);
+  box-shadow: 0 0 15px #FF69B4, 0 0 25px #9370DB;
+  animation: magic-spiral 3s ease-in-out infinite;
+}
+
+.particle-leaf {
+  background: linear-gradient(45deg, #90EE90, #32CD32);
+  border-radius: 50% 0 50% 0;
+  animation: leaf-fall 2s ease-in forwards;
+}
+
+.particle-firefly {
+  background: radial-gradient(circle, #FFFF00, transparent);
+  box-shadow: 0 0 8px #FFFF00, 0 0 16px #FFFF00;
+  animation: firefly-dance 4s ease-in-out infinite;
+}
+
+@keyframes particle-float {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-100px) scale(0); opacity: 0; }
+}
+
+@keyframes sparkle-twinkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.2); }
+}
+
+@keyframes magic-spiral {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.5); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes leaf-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(80px) rotate(720deg); opacity: 0; }
+}
+
+@keyframes firefly-dance {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(10px, -5px); }
+  50% { transform: translate(-5px, -10px); }
+  75% { transform: translate(-10px, 5px); }
+}
+
+/* Weather Effects */
+.weather-effects {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.rain-drop {
+  position: absolute;
+  width: 2px;
+  height: 15px;
+  background: linear-gradient(to bottom, transparent, #87CEEB, transparent);
+  animation: rain-fall linear infinite;
+}
+
+.snow-flake {
+  position: absolute;
+  color: #FFF;
+  user-select: none;
+  animation: snow-fall linear infinite;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+@keyframes rain-fall {
+  0% { transform: translateY(-10px); opacity: 1; }
+  100% { transform: translateY(calc(100vh + 10px)); opacity: 0; }
+}
+
+@keyframes snow-fall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(calc(100vh + 10px)) rotate(360deg); opacity: 0; }
+}
+
+/* Zen Mode */
+.walkable-garden.zen-mode {
+  filter: sepia(0.3) hue-rotate(80deg) saturate(1.2);
+}
+
+.walkable-garden.zen-mode::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, 
+    transparent 30%, 
+    rgba(138, 43, 226, 0.1) 70%
+  );
+  z-index: 10;
+  pointer-events: none;
+}
+
+.walkable-garden.zen-mode .competition-ui {
+  opacity: 0.5;
+  transition: opacity 0.5s ease;
+}
+
+/* Magic Mode */
+.walkable-garden.magic-mode {
+  filter: brightness(1.2) contrast(1.1) saturate(1.3);
+}
+
+.walkable-garden.magic-mode::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(255, 255, 0, 0.1) 0%, transparent 50%);
+  animation: magic-shimmer 3s ease-in-out infinite;
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* Enhanced Modals */
+.enhanced-pet-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2500;
+  animation: modal-fade-in 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.enhanced-pet-content {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.95) 0%, 
+    rgba(240, 248, 255, 0.95) 100%
+  );
+  padding: 40px;
+  border-radius: 25px;
+  max-width: 600px;
+  text-align: center;
+  box-shadow: 
+    0 30px 80px rgba(0, 0, 0, 0.3),
+    0 0 50px rgba(255, 215, 0, 0.2);
+  border: 3px solid rgba(255, 215, 0, 0.3);
+  animation: modal-slide-in 0.4s ease;
+}
+
+.pet-avatar-large {
+  font-size: 5rem;
+  margin-bottom: 20px;
+  animation: pet-avatar-bounce 0.6s ease-out;
+  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.4));
+}
+
+.pet-name {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2d5016;
+  margin-bottom: 15px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.pet-message-enhanced {
+  font-size: 1.3rem;
+  color: #333;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 15px;
+  border-left: 4px solid #FFD700;
+}
+
+.mood-boost {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #32CD32;
+  margin-bottom: 25px;
+  padding: 10px 20px;
+  background: rgba(50, 205, 50, 0.1);
+  border-radius: 20px;
+  display: inline-block;
+  border: 2px solid rgba(50, 205, 50, 0.3);
+}
+
+.close-enhanced {
+  background: linear-gradient(45deg, #32CD32, #90EE90);
+  color: #333;
+  border: none;
+  padding: 15px 30px;
+  border-radius: 25px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 8px 25px rgba(50, 205, 50, 0.3);
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.close-enhanced:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(50, 205, 50, 0.4);
+  background: linear-gradient(45deg, #90EE90, #32CD32);
+}
+
+/* Achievement System */
+.achievement-notification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(135deg, #FFD700, #FFA500, #FFD700);
+  border: 3px solid #FF8C00;
+  border-radius: 25px;
+  padding: 30px;
+  box-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+  z-index: 4000;
+  animation: achievement-celebration 4s ease-in-out;
+  text-align: center;
+}
+
+.achievement-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.achievement-icon {
+  font-size: 4rem;
+  animation: achievement-bounce 0.6s ease-in-out infinite;
+}
+
+.achievement-text {
+  text-align: left;
+}
+
+.achievement-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.achievement-name {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #8B4513;
+  margin-bottom: 5px;
+}
+
+.achievement-desc {
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
+}
+
+/* Particle Effects */
+.particles-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.particle.sparkle {
+  background: radial-gradient(circle, #FFD700 0%, transparent 70%);
+  animation: sparkle-float 2s ease-out forwards;
+}
+
+.particle.magic {
+  background: radial-gradient(circle, #32CD32 0%, transparent 70%);
+  animation: magic-spiral 1.5s ease-out forwards;
+}
+
+.particle.leaf {
+  background: radial-gradient(circle, #90EE90 0%, transparent 70%);
+  animation: leaf-drift 3s ease-out forwards;
+}
+
+/* Weather Effects */
+.weather-effects {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.rain-drop {
+  position: absolute;
+  width: 2px;
+  height: 15px;
+  background: linear-gradient(to bottom, transparent, #87CEEB);
+  animation: rain-fall 1s linear infinite;
+}
+
+.snow-flake {
+  position: absolute;
+  font-size: 1rem;
+  animation: snow-fall 4s linear infinite;
+  opacity: 0.8;
+}
+
+/* Zen Mode */
+.walkable-garden.zen-mode {
+  filter: sepia(0.3) hue-rotate(80deg) saturate(1.2);
+}
+
+.walkable-garden.zen-mode::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, 
+    transparent 30%, 
+    rgba(138, 43, 226, 0.1) 70%
+  );
+  z-index: 10;
+  pointer-events: none;
+}
+
+.walkable-garden.zen-mode .competition-ui {
+  opacity: 0.5;
+  transition: opacity 0.5s ease;
+}
+
+/* Magic Mode */
+.walkable-garden.magic-mode {
+  filter: brightness(1.2) contrast(1.1) saturate(1.3);
+}
+
+.walkable-garden.magic-mode::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(255, 255, 0, 0.1) 0%, transparent 50%);
+  animation: magic-shimmer 3s ease-in-out infinite;
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* Enhanced Modals */
+.enhanced-pet-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2500;
+  animation: modal-fade-in 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.enhanced-pet-content {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.95) 0%, 
+    rgba(240, 248, 255, 0.95) 100%
+  );
+  padding: 40px;
+  border-radius: 25px;
+  max-width: 600px;
+  text-align: center;
+  box-shadow: 
+    0 30px 80px rgba(0, 0, 0, 0.3),
+    0 0 50px rgba(255, 215, 0, 0.2);
+  border: 3px solid rgba(255, 215, 0, 0.3);
+  animation: modal-slide-in 0.4s ease;
+}
+
+.pet-avatar-large {
+  font-size: 5rem;
+  margin-bottom: 20px;
+  animation: pet-avatar-bounce 0.6s ease-out;
+  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.4));
+}
+
+.pet-name {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2d5016;
+  margin-bottom: 15px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.pet-message-enhanced {
+  font-size: 1.3rem;
+  color: #333;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 15px;
+  border-left: 4px solid #FFD700;
+}
+
+.mood-boost {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #32CD32;
+  margin-bottom: 25px;
+  padding: 10px 20px;
+  background: rgba(50, 205, 50, 0.1);
+  border-radius: 20px;
+  display: inline-block;
+  border: 2px solid rgba(50, 205, 50, 0.3);
+}
+
+.close-enhanced {
+  background: linear-gradient(45deg, #32CD32, #90EE90);
+  color: #333;
+  border: none;
+  padding: 15px 30px;
+  border-radius: 25px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 8px 25px rgba(50, 205, 50, 0.3);
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.close-enhanced:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(50, 205, 50, 0.4);
+  background: linear-gradient(45deg, #90EE90, #32CD32);
+}
+
+/* Achievement System */
+.achievement-notification {
+  position: fixed;
+  top: 20%;
+  right: 20px;
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #333;
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4);
+  animation: achievement-enter 0.5s ease-out, achievement-glow 2s ease-in-out infinite;
+  z-index: 2000;
+  max-width: 300px;
+}
+
+@keyframes achievement-enter {
+  from { 
+    transform: translateX(100%) scale(0.8); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateX(0) scale(1); 
+    opacity: 1; 
+  }
+}
+
+@keyframes achievement-glow {
+  0%, 100% { box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4); }
+  50% { box-shadow: 0 15px 40px rgba(255, 215, 0, 0.6); }
+}
+
+/* Zen Breathing Guide Styles */
+.zen-breathing-guide {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  pointer-events: none;
+}
+
+.breathing-circle {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, 
+    rgba(230, 230, 250, 0.8) 0%, 
+    rgba(147, 112, 219, 0.6) 50%, 
+    rgba(230, 230, 250, 0.3) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 30px rgba(147, 112, 219, 0.5);
+  transition: all ease-in-out;
+}
+
+.breathing-circle.inhale {
+  animation: inhale-expand 4s ease-in-out;
+  transform: scale(1.3);
+}
+
+.breathing-circle.hold {
+  animation: hold-steady 2s ease-in-out;
+  transform: scale(1.3);
+}
+
+.breathing-circle.exhale {
+  animation: exhale-contract 6s ease-in-out;
+  transform: scale(0.8);
+}
+
+.breathing-circle.pause {
+  animation: pause-rest 2s ease-in-out;
+  transform: scale(1);
+}
+
+.breathing-center {
+  text-align: center;
+  color: white;
+  font-weight: bold;
+}
+
+.breath-text {
+  font-size: 1.2rem;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.breath-counter {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  backdrop-filter: blur(10px);
+}
+
+@keyframes inhale-expand {
+  from { transform: scale(1); }
+  to { transform: scale(1.3); }
+}
+
+@keyframes hold-steady {
+  from, to { transform: scale(1.3); }
+}
+
+@keyframes exhale-contract {
+  from { transform: scale(1.3); }
+  to { transform: scale(0.8); }
+}
+
+@keyframes pause-rest {
+  from { transform: scale(0.8); }
+  to { transform: scale(1); }
+}
+
+/* Final Zen Enhancements - Breath of Life */
+
+/* Zen breathing animation for plants */
+.plant-enhanced {
+  animation: zen-breathe 4s ease-in-out infinite;
+}
+
+@keyframes zen-breathe {
+  0%, 100% { transform: scale(1) translateY(0); filter: brightness(1); }
+  50% { transform: scale(1.05) translateY(-2px); filter: brightness(1.1); }
+}
+
+/* Enhanced zen mode effects */
+.zen-mode .garden-environment {
+  filter: sepia(0.1) saturate(1.2) brightness(1.1);
+  background: radial-gradient(ellipse at center, 
+    rgba(255, 255, 255, 0.1) 0%, 
+    rgba(230, 230, 250, 0.05) 50%, 
+    rgba(147, 112, 219, 0.1) 100%);
+}
+
+.zen-mode .player-enhanced {
+  animation: zen-glow 3s ease-in-out infinite;
+}
+
+@keyframes zen-glow {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(230, 230, 250, 0.5);
+    filter: drop-shadow(0 0 10px rgba(147, 112, 219, 0.3));
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(230, 230, 250, 0.8);
+    filter: drop-shadow(0 0 15px rgba(147, 112, 219, 0.5));
+  }
+}
+
+/* Healing meditation circles */
+.meditation-circle {
+  position: absolute;
+  left: 25%;
+  top: 30%;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, 
+    rgba(255, 215, 0, 0.2) 0%, 
+    rgba(255, 215, 0, 0.1) 50%, 
+    transparent 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: meditation-pulse 6s ease-in-out infinite;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.meditation-circle:hover {
+  transform: scale(1.1);
+  background: radial-gradient(circle, 
+    rgba(255, 215, 0, 0.3) 0%, 
+    rgba(255, 215, 0, 0.2) 50%, 
+    transparent 100%);
+}
+
+.circle-center {
+  font-size: 2rem;
+  animation: rotate-peace 8s linear infinite;
+}
+
+@keyframes meditation-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+@keyframes rotate-peace {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Enhanced nature sounds visualization */
+.sound-wave {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.sound-ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 191, 255, 0.3);
+  animation: sound-expand 3s ease-out infinite;
+}
+
+@keyframes sound-expand {
+  0% {
+    width: 10px;
+    height: 10px;
+    opacity: 1;
+  }
+  100% {
+    width: 200px;
+    height: 200px;
+    opacity: 0;
+  }
+}
+
+/* Twilight/sunset enhancement */
+.garden-environment.sunset {
+  background: linear-gradient(to bottom,
+    rgba(255, 94, 77, 0.3) 0%,
+    rgba(255, 154, 0, 0.2) 30%,
+    rgba(255, 206, 84, 0.1) 60%,
+    rgba(16, 16, 60, 0.1) 100%);
+}
+
+.garden-environment.sunset .sky-gradient {
+  background: linear-gradient(to bottom,
+    #ff6347 0%,
+    #ffa500 30%,
+    #ffce54 60%,
+    #101040 100%);
+  opacity: 0.6;
+}
+
+/* Night magic enhancement */
+.garden-environment.night {
+  background: linear-gradient(to bottom,
+    rgba(16, 16, 60, 0.8) 0%,
+    rgba(25, 25, 112, 0.6) 50%,
+    rgba(0, 0, 0, 0.4) 100%);
+}
+
+.star-field {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.star {
+  position: absolute;
+  animation: twinkle 2s ease-in-out infinite;
+}
+
+.star:nth-child(1) { top: 10%; left: 20%; animation-delay: 0s; }
+.star:nth-child(2) { top: 20%; left: 80%; animation-delay: 0.5s; }
+.star:nth-child(3) { top: 30%; left: 50%; animation-delay: 1s; }
+.star:nth-child(4) { top: 15%; left: 70%; animation-delay: 1.5s; }
+.star:nth-child(5) { top: 25%; left: 30%; animation-delay: 2s; }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* Misty weather enhancement */
+.garden-environment.misty {
+  position: relative;
+}
+
+.garden-environment.misty::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.1) 0px,
+    rgba(255, 255, 255, 0.1) 2px,
+    transparent 2px,
+    transparent 20px
+  );
+  animation: mist-drift 10s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes mist-drift {
+  0%, 100% { transform: translateX(-10px); opacity: 0.3; }
+  50% { transform: translateX(10px); opacity: 0.6; }
+}
+
+/* Rainy day enhancement */
+.garden-environment.rainy .particle-sparkle {
+  background: linear-gradient(45deg, #87CEEB, #4682B4);
+  animation: rain-drop 1s linear infinite;
+}
+
+@keyframes rain-drop {
+  0% { transform: translateY(-20px); opacity: 1; }
+  100% { transform: translateY(100px); opacity: 0; }
+}
+
+/* Enhanced plant wisdom tooltip */
+.plant-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltip-fade-in 0.3s ease-out forwards;
+  z-index: 1000;
+}
+
+.plant-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
+}
+
+@keyframes tooltip-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Enhanced achievement celebration */
+.achievement-notification {
+  position: fixed;
+  top: 20%;
+  right: 20px;
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #333;
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4);
+  animation: achievement-enter 0.5s ease-out, achievement-glow 2s ease-in-out infinite;
+  z-index: 2000;
+  max-width: 300px;
+}
+
+@keyframes achievement-enter {
+  from { 
+    transform: translateX(100%) scale(0.8); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateX(0) scale(1); 
+    opacity: 1; 
+  }
+}
+
+@keyframes achievement-glow {
+  0%, 100% { box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4); }
+  50% { box-shadow: 0 15px 40px rgba(255, 215, 0, 0.6); }
+}
+
+/* Enhanced zen stones */
+.zen-stones {
+  position: absolute;
+  right: 20%;
+  bottom: 25%;
+  display: flex;
+  gap: 10px;
+}
+
+.stone {
+  font-size: 1.5rem;
+  animation: stone-balance 5s ease-in-out infinite;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.stone:hover {
+  transform: scale(1.2) rotateZ(10deg);
+}
+
+.stone:nth-child(1) { animation-delay: 0s; }
+.stone:nth-child(2) { animation-delay: 1s; }
+.stone:nth-child(3) { animation-delay: 2s; }
+
+@keyframes stone-balance {
+  0%, 100% { transform: translateY(0) rotateZ(0deg); }
+  50% { transform: translateY(-5px) rotateZ(2deg); }
+}
+
+/* Enhanced ambient particle effects */
+.particle-zen {
+  background: radial-gradient(circle, #E6E6FA, #DDA0DD);
+  box-shadow: 0 0 15px #E6E6FA;
+  animation: zen-float 4s ease-in-out infinite;
+}
+
+@keyframes zen-float {
+  0%, 100% { 
+    transform: translateY(0) scale(1) rotate(0deg); 
+    opacity: 0.7; 
+  }
+  50% { 
+    transform: translateY(-20px) scale(1.1) rotate(180deg); 
+    opacity: 1; 
+  }
+}
+
+/* Final responsive enhancement */
+@media (max-width: 768px) {
+  .meditation-circle {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .circle-center {
+    font-size: 1.5rem;
+  }
+  
+  .zen-stones .stone {
+    font-size: 1.2rem;
+  }
+  
+  .achievement-notification {
+    right: 10px;
+    max-width: 250px;
+  }
+}
+
+/* Enhanced cloud animations */
+.cloud {
+  position: absolute;
+  font-size: 2rem;
+  animation: cloud-drift 20s linear infinite;
+  opacity: 0.7;
+}
+
+.cloud-1 { top: 10%; animation-delay: 0s; }
+.cloud-2 { top: 15%; animation-delay: -7s; }
+.cloud-3 { top: 20%; animation-delay: -14s; }
+
+@keyframes cloud-drift {
+  from { transform: translateX(-100px); }
+  to { transform: translateX(calc(100vw + 100px)); }
+}

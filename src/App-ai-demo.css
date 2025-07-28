@@ -1,0 +1,463 @@
+/* MoodGarden 2.0 AI Demo Styles */
+.mood-garden-app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.app-header {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.app-header h1 {
+  color: white;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.status-indicators {
+  display: flex;
+  gap: 1rem;
+}
+
+.indicator {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.indicator.connected {
+  background: rgba(52, 211, 153, 0.3);
+}
+
+.indicator.disconnected {
+  background: rgba(248, 113, 113, 0.3);
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  min-height: calc(100vh - 80px);
+}
+
+/* Left Panel - Mood Input */
+.mood-input-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  height: fit-content;
+}
+
+.mood-input-panel h2 {
+  margin: 0 0 1rem 0;
+  color: #374151;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.mood-form {
+  margin-bottom: 1.5rem;
+}
+
+.mood-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.mood-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.input-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.analyze-button, .voice-button, .biometric-button, .soundscape-button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.analyze-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  flex: 1;
+}
+
+.analyze-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+}
+
+.analyze-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.voice-button {
+  background: #10b981;
+  color: white;
+}
+
+.voice-button.recording {
+  background: #ef4444;
+  animation: pulse 1s infinite;
+}
+
+.biometric-button {
+  background: #f59e0b;
+  color: white;
+}
+
+.soundscape-button {
+  background: #8b5cf6;
+  color: white;
+}
+
+.soundscape-button.active {
+  background: #ef4444;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Animation keyframes */
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px); 
+  }
+  50% { 
+    transform: translateY(-10px); 
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1; 
+  }
+  50% { 
+    opacity: 0.7; 
+  }
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+/* Current Mood Display */
+.current-mood {
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e2e8f0;
+}
+
+.current-mood h3 {
+  margin: 0 0 0.75rem 0;
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.emotion-primary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.emotion-primary strong {
+  color: #1f2937;
+  font-size: 1.125rem;
+  text-transform: capitalize;
+}
+
+.confidence {
+  background: #ddd6fe;
+  color: #5b21b6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.emotion-spectrum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.emotion-tag {
+  background: #e0f2fe;
+  color: #0c4a6e;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.insights {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.insights strong {
+  color: #1f2937;
+}
+
+.insights p {
+  margin: 0.5rem 0 0 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Active Plants */
+.active-plants {
+  background: #f0fdf4;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #bbf7d0;
+}
+
+.active-plants h3 {
+  margin: 0 0 0.75rem 0;
+  color: #166534;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.plant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.plant-card {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #d1fae5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.plant-image {
+  width: 40px;
+  height: 50px;
+  object-fit: contain;
+  border-radius: 0.25rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  padding: 0.25rem;
+}
+
+.plant-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.plant-emoji {
+  font-size: 1.25rem;
+}
+
+.plant-name {
+  font-weight: 500;
+  color: #166534;
+  text-transform: capitalize;
+}
+
+.plant-stats {
+  display: flex;
+  gap: 1rem;
+}
+
+.plant-stats small {
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+/* Center - Garden Container */
+.garden-container {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Right Panel - Debug */
+.debug-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  height: fit-content;
+}
+
+.debug-panel h3 {
+  margin: 0 0 1rem 0;
+  color: #374151;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.debug-logs {
+  background: #1f2937;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  height: 300px;
+  overflow-y: auto;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.debug-log {
+  color: #9ca3af;
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
+}
+
+.debug-log:first-child {
+  color: #10b981;
+}
+
+.stats-section h4 {
+  margin: 0 0 0.75rem 0;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stats div {
+  color: #6b7280;
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Biometric Panel Styles */
+.biometric-panel {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.biometric-panel h3 {
+  color: white;
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.biometric-data {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0;
+}
+
+.metric-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+}
+
+.metric-value {
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .mood-input-panel, .debug-panel {
+    order: 1;
+  }
+  
+  .garden-container {
+    order: 2;
+    min-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .input-actions {
+    flex-direction: column;
+  }
+  
+  .emotion-spectrum {
+    justify-content: center;
+  }
+}
