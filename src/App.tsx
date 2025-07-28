@@ -1,12 +1,12 @@
 import './App.css';
-import FinalPlatformApp from './FinalPlatformApp';
+import MoodGardenApp from './MoodGardenApp';
 
 function App() {
-  console.log('App component rendering - Final Production Version');
+  console.log('MoodGarden - Your Personal Mental Wellness Companion');
   
   return (
     <div className="App">
-      <FinalPlatformApp />
+      <MoodGardenApp />
     </div>
   );
 }
