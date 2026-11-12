@@ -1,35 +1,82 @@
-# MoodGarden
+# Mood Garden
 
-MoodGarden is a cross-platform mental wellness app that transforms your daily moods into a dynamic virtual garden, using AI to personalize growth and self-care insights.
+**Mood Garden** is a 3D exploration game that runs in the browser. You play the Keeper, washed up on an
+island that has gone quiet: its colour drained, its groves asleep. Gather motes of feeling, plant them,
+and watch the island come back to life — one great tree, one biome, one instrument in the score at a time.
 
-## Core Features (MVP)
-- **Mood Input System:** Multi-modal input (text, emoji slider, voice note with transcription), AI sentiment/context analysis.
-- **Dynamic Garden Engine:** Mood-to-plant algorithm, growth stages, and evolving garden visuals.
-- **AI Wellness Coach:** Metaphorical self-care tips and micro-habit suggestions.
-- **Progress Tracking:** Calendar/timeline of moods and garden biome changes.
+Everything in the game is generated at runtime — terrain, trees, sky, water, music and sound. There are
+no model, texture or audio files to download.
 
-## Tech Stack
-- **Frontend:** React + TypeScript (Vite)
-- **Backend:** Node.js + Express + TypeScript
-- **Mobile:** React Native + Expo + TypeScript
-- **Shared:** Common types and API client
-- **AI:** OpenAI API for sentiment/context analysis and coaching
-- **Database:** MongoDB
+## The game
 
-## Getting Started
+- **Six groves, six feelings** — Joy, Calm, Love, Hope, Courage and Sorrow each own a region of the island.
+  Collect five motes near a grove, carry them to its seedbed and plant them to grow its great tree.
+- **A world that answers** — a wave of colour rolls out from every awakened grove. Grass grows tall, flowers
+  open, trees leaf out, butterflies and birds return, and the sky clears.
+- **Adaptive score** — the soundtrack starts as a bare drone and gains one instrument per grove.
+- **Name what you feel** — press `F` at any time to pick a feeling (and optionally write a line about it).
+  A bloom of that feeling is planted where you stand and logged in your journal. This is the original
+  Mood Garden idea, kept as a game mechanic: your real mood shapes the garden.
+- **Day and night** — a full cycle with sun shafts, stars, fireflies, glowing canopies and a lantern wisp.
+- **Photo mode** — pause, free the camera, set the time of day, capture a PNG.
 
-### Prerequisites
-- Node.js 18+ and npm
-- MongoDB (local or cloud)
-- Optional: OpenAI API key for AI features
-- For mobile: Expo CLI (`npm install -g @expo/cli`)
+### Controls
 
-### Frontend Setup (Web)
+| Action | Keyboard & mouse | Gamepad |
+| --- | --- | --- |
+| Move / look | `WASD` / mouse (click to capture) | Left / right stick |
+| Run | `Shift` | Right trigger |
+| Jump, hold to glide | `Space` | A |
+| Interact | `E` | X |
+| Name a feeling | `F` | Y |
+| Sense nearby motes | `Q` | B |
+| Journal | `J` | Back |
+| Pause | `Esc` | Start |
+
+Touch devices get an on-screen stick and buttons. Progress saves automatically in the browser.
+
+## Tech
+
+- **Web game:** TypeScript, [three.js](https://threejs.org) (WebGL 2), React for the HUD, Vite.
+- **Rendering:** HDR pipeline with ACES tone mapping, bloom, screen-space light shafts and a film grade;
+  shadow-mapped sun/moon; GPU-instanced wind-animated grass that wraps around the camera; leaf-card
+  canopies; procedural sky with clouds, stars and aurora; depth-tinted water with shoreline foam.
+- **Audio:** Web Audio synthesis only (sequenced score, ambience and effects).
+- **Also in this repo:** `backend/` (Express API), `mobile/` (Expo app) and `shared/` from the earlier
+  mood-tracker app. The web game does not depend on them.
+
+### Run the game
+
 ```bash
 npm install
 npm run dev
 ```
-Runs on http://localhost:5173
+
+Open http://localhost:5173. A dedicated GPU is recommended; graphics quality can be changed in Settings
+and the game lowers its resolution automatically if the frame rate drops.
+
+```bash
+npm run build     # production build in dist/
+npm run preview   # serve the build locally
+```
+
+### Source layout
+
+```
+src/
+├── game/
+│   ├── Game.ts          # frame loop, camera, cinematics, quests, saving
+│   ├── core/            # input, audio engine, math, HUD store
+│   ├── data/            # the six moods and world constants
+│   ├── world/           # terrain, sky, water, grass, flora, particles
+│   ├── entities/        # player, groves and motes, wildlife
+│   └── render/          # shared shader code and post-processing
+└── ui/                  # React HUD: title, compass, feeling wheel, journal, pause, photo mode
+```
+
+## Earlier app: backend and mobile
+
+These packages belong to the original mood-tracker and are unchanged.
 
 ### Backend Setup
 ```bash
@@ -67,7 +114,7 @@ npm run build
 
 ### VS Code Tasks
 Use VS Code's built-in task runner:
-- **Vite: Dev Server** - Start web frontend
+- **Vite: Dev Server** - Start the web game
 - **Backend: Dev Server** - Start API server
 - **Mobile: Expo Start** - Start mobile development server
 - **Mobile: iOS Simulator** - Launch in iOS simulator
@@ -83,7 +130,7 @@ Use VS Code's built-in task runner:
 ## Project Structure
 ```
 mood-garden/
-├── src/                 # Web frontend (React + Vite)
+├── src/                 # The 3D web game (three.js + React HUD)
 ├── backend/             # API server (Node.js + Express)
 ├── mobile/              # Mobile app (React Native + Expo)
 ├── shared/              # Common types and API client
