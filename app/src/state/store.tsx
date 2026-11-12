@@ -41,6 +41,7 @@ export interface State {
   plus: boolean; // Garden+ (billing not wired yet; preview toggle only)
   calmSessions: number;
   lastSeenDay: string | null;
+  reminder: { on: boolean; hour: number; minute: number; asked: boolean };
 }
 
 const initial: State = {
@@ -55,6 +56,7 @@ const initial: State = {
   plus: false,
   calmSessions: 0,
   lastSeenDay: null,
+  reminder: { on: false, hour: 18, minute: 30, asked: false },
 };
 
 export const BLOOM_AT = 3;
@@ -100,6 +102,7 @@ type Action =
   | { type: 'calmDone' }
   | { type: 'setPlus'; plus: boolean }
   | { type: 'seen' }
+  | { type: 'reminder'; reminder: Partial<State['reminder']> }
   | { type: 'reset' };
 
 function addPlant(s: State, species: string, entryId: string | null, day: string, out: Harvest) {
@@ -112,11 +115,14 @@ function addPlant(s: State, species: string, entryId: string | null, day: string
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'load':
-      return { ...state, ...action.state, loaded: true };
+      // Merge nested reminder so older saves pick up new defaults.
+      return { ...state, ...action.state, reminder: { ...state.reminder, ...action.state.reminder }, loaded: true };
     case 'onboard':
       return { ...state, onboarded: true };
     case 'seen':
       return { ...state, lastSeenDay: dayKey() };
+    case 'reminder':
+      return { ...state, reminder: { ...state.reminder, ...action.reminder } };
     case 'setPlus':
       return { ...state, plus: action.plus };
     case 'biome':

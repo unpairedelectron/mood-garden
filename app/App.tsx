@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlmanacScreen } from './src/screens/AlmanacScreen';
@@ -8,7 +8,10 @@ import { CheckInScreen } from './src/screens/CheckInScreen';
 import { GardenScreen } from './src/screens/GardenScreen';
 import { JourneyScreen } from './src/screens/JourneyScreen';
 import { PlusScreen } from './src/screens/PlusScreen';
-import { StoreProvider, useStore } from './src/state/store';
+import * as Notifications from 'expo-notifications';
+import { AppState } from 'react-native';
+import { supported, syncReminders } from './src/notifications';
+import { StoreProvider, dayKey, useStore } from './src/state/store';
 import { C, bump, tap } from './src/theme';
 
 type Tab = 'garden' | 'almanac' | 'plant' | 'calm' | 'journey';
@@ -49,6 +52,38 @@ function Shell() {
   useEffect(() => {
     if (fresh) setTab('plant');
   }, [fresh]);
+
+  // Keep the next week of reminders in step with the garden: reschedule when settings
+  // change, after a check-in (to skip today and refresh the message), and on app resume.
+  const lastDay = state.entries.length ? state.entries[state.entries.length - 1].day : '';
+  const { on, hour, minute } = state.reminder;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  useEffect(() => {
+    if (!state.loaded) return;
+    syncReminders(stateRef.current).catch(() => {});
+  }, [state.loaded, on, hour, minute, lastDay, state.plants.length]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', s => {
+      if (s === 'active' && stateRef.current.loaded) syncReminders(stateRef.current).catch(() => {});
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Tapping a reminder opens the check-in, unless today is already planted.
+  const response = supported ? Notifications.useLastNotificationResponse() : null;
+  const handled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!response || !state.loaded || !state.onboarded) return;
+    const id = response.notification.request.identifier;
+    if (handled.current === id) return;
+    handled.current = id;
+    const checked = stateRef.current.entries.some(e => e.day === dayKey());
+    if (response.notification.request.content.data?.open === 'plant' && !checked) {
+      setCheckInKey(k => k + 1);
+      setTab('plant');
+    }
+  }, [response, state.loaded, state.onboarded]);
 
   if (!state.loaded) return <View style={styles.center}><ActivityIndicator color={C.leaf} /></View>;
   if (!state.onboarded) return <Onboarding />;

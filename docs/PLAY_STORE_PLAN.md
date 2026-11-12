@@ -65,7 +65,7 @@ revenue needed years and a team. Treat the first 3 months as a test of retention
 2. **Billing:** add `react-native-purchases` (RevenueCat, free under $2.5k/month) or `expo-iap`,
    then replace the preview toggle in `app/src/screens/PlusScreen.tsx`. This needs a dev build
    (`eas build`), not Expo Go.
-3. **Daily reminder notification** (`expo-notifications`). This is the biggest single retention lever, so make it the next feature.
+3. ✅ **Daily reminder notifications** are built (`app/src/notifications.ts`). The app offers them right after the first planting and you can change the time in the Journey tab. It schedules a week of varied, guilt-free nudges ("Your Rain Lily is about to bloom ✨") and skips days you've already checked in. Test on a real phone with a development build.
 4. **Health app policy:** fill in the Health apps declaration and say clearly that this is not a
    medical device. A disclaimer and crisis-line link are already in the Journey tab.
 5. **Data safety form:** "No data collected" stays true while the app is offline-only.

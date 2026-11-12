@@ -1,5 +1,6 @@
 import React from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ReminderPicker } from '../components/ReminderPicker';
 import { FEELINGS, feelingById } from '../data/species';
 import { dayKey, streakOf, useStore } from '../state/store';
 import { C } from '../theme';
@@ -70,6 +71,11 @@ export function JourneyScreen({ onPlus }: { onPlus: () => void }) {
           </View>
         ))}
         {!state.entries.some(e => e.note) && <Text style={styles.gentle}>Notes you tuck into seeds appear here.</Text>}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Daily reminder</Text>
+        <ReminderPicker />
       </View>
 
       <View style={styles.card}>

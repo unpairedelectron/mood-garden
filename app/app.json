@@ -14,7 +14,10 @@
     "android": {
       "package": "com.moodgarden.app",
       "versionCode": 1,
-      "permissions": [],
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E8F5E9",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -25,6 +28,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#2E7D32"
+        }
+      ]
+    ]
   }
 }

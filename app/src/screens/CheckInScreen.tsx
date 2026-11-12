@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FEELINGS, FeelingId, feelingById, speciesById } from '../data/species';
+import { ReminderPicker } from '../components/ReminderPicker';
+import { supported } from '../notifications';
 import { Harvest, useStore } from '../state/store';
 import { C, bump, cheer, rarityColor, tap } from '../theme';
 
@@ -74,6 +76,9 @@ export function CheckInScreen({ onDone }: { onDone: () => void }) {
 }
 
 function Celebration({ harvest, whisper, onDone }: { harvest: Harvest; whisper: string; onDone: () => void }) {
+  const { state, dispatch } = useStore();
+  // Ask about reminders once, right after the first planting, when it means the most.
+  const [askReminder] = useState(() => supported && !state.reminder.asked && !state.reminder.on);
   const drop = useRef(new Animated.Value(0)).current;
   const grow = useRef(new Animated.Value(0)).current;
   const burst = useRef(new Animated.Value(0)).current;
@@ -130,7 +135,19 @@ function Celebration({ harvest, whisper, onDone }: { harvest: Harvest; whisper: 
         {harvest.bloomed > 0 && <Text style={styles.reward}>🌼 {harvest.bloomed} plant{harvest.bloomed > 1 ? 's' : ''} bloomed!</Text>}
       </View>
 
-      <Pressable style={styles.plant} onPress={() => { tap(); onDone(); }}>
+      {askReminder && (
+        <View style={styles.ask}>
+          <Text style={styles.askTitle}>{state.reminder.on ? '🔔 See you tomorrow!' : 'Want a gentle nudge to come back? 🌱'}</Text>
+          <Text style={styles.askBody}>Your sprouts bloom after 3 check-in days. We'll skip the nudge on days you've already checked in.</Text>
+          <ReminderPicker compact />
+        </View>
+      )}
+
+      <Pressable style={styles.plant} onPress={() => {
+        tap();
+        if (askReminder && !state.reminder.asked) dispatch({ type: 'reminder', reminder: { asked: true } });
+        onDone();
+      }}>
         <Text style={styles.plantText}>See my garden</Text>
       </Pressable>
     </View>
@@ -155,5 +172,8 @@ const styles = StyleSheet.create({
   newSpecies: { marginTop: 8, color: C.rare, fontWeight: '700' },
   whisper: { fontSize: 16, color: C.soft, textAlign: 'center', marginTop: 12, lineHeight: 22, paddingHorizontal: 8 },
   rewards: { flexDirection: 'row', gap: 10, marginTop: 18, flexWrap: 'wrap', justifyContent: 'center' },
+  ask: { alignSelf: 'stretch', backgroundColor: '#fff', borderRadius: 18, padding: 14, marginTop: 18 },
+  askTitle: { fontWeight: '800', color: C.ink, fontSize: 15 },
+  askBody: { color: C.soft, fontSize: 12, marginTop: 2, marginBottom: 10 },
   reward: { backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, fontWeight: '700', color: C.ink, overflow: 'hidden' },
 });
