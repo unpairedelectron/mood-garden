@@ -1,7 +1,7 @@
 {
-  "name": "Mood Garden Pocket",
+  "name": "Mood Garden",
   "short_name": "Mood Garden",
-  "description": "A floating 3D garden that grows from how you feel.",
+  "description": "A forest you plant from how you feel, and walk through.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

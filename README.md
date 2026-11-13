@@ -5,10 +5,10 @@ Two 3D games about a garden that grows from how you feel, plus the earlier mood-
 | Folder | What it is |
 | --- | --- |
 | [`AAA-pc-game/`](AAA-pc-game/README.md) | **Mood Garden** for PC: a third-person exploration game. Restore a colourless island by gathering motes of feeling and waking six groves. Keyboard and mouse or gamepad; wants a dedicated GPU. |
-| [`mobile-game/`](mobile-game/README.md) | **Mood Garden Pocket** for phones: a floating hex-tile garden you tend with taps. Plant how you feel, water, collect light, raise new land. Portrait, touch-first, installable to the home screen and playable offline. |
+| [`mobile-game/`](mobile-game/README.md) | **Mood Garden** for phones: plant a forest from how you feel and walk through it in first person. Photo-scanned trees, plants and skies (Poly Haven, CC0); ferns, flowers and wildlife arrive on their own as the forest grows. Touch-first, installable to the home screen. |
 | `backend/`, `mobile/`, `shared/` | The original mood-tracker (Express API, Expo app, shared types). Unchanged; neither game depends on them. |
 
-Both games generate everything at runtime (models, sky, music, sound), so there are no asset files.
+The PC game generates everything at runtime. The mobile game ships about 15 MB of scanned assets; its music and sound are synthesised.
 
 ```bash
 cd AAA-pc-game && npm install && npm run dev

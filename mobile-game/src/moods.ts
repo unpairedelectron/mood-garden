@@ -3,20 +3,25 @@ export type MoodId = 'joy' | 'calm' | 'love' | 'hope' | 'courage' | 'sorrow';
 export interface MoodDef {
   id: MoodId;
   name: string;
-  color: number;
-  soft: number;
   css: string;
-  plant: string;
   feeling: string;
+  /** The tree this feeling grows into. */
+  tree: string;
+  /** Baked impostor asset (see tools/bake.ts). */
+  asset: string;
+  /** Full-grown height in metres. */
+  height: number;
+  flowering: boolean;
+  conifer: boolean;
 }
 
 export const MOODS: MoodDef[] = [
-  { id: 'joy', name: 'Joy', color: 0xffc533, soft: 0xffe9a3, css: '#ffc533', plant: 'Sunburst', feeling: 'Bright, playful, glad' },
-  { id: 'calm', name: 'Calm', color: 0x3fd6c8, soft: 0xb5f4ee, css: '#3fd6c8', plant: 'Stillwater Pine', feeling: 'Settled, quiet, at ease' },
-  { id: 'love', name: 'Love', color: 0xff5c9a, soft: 0xffc2da, css: '#ff5c9a', plant: 'Heartblossom', feeling: 'Warm, close, grateful' },
-  { id: 'hope', name: 'Hope', color: 0x9be84a, soft: 0xdcf8b4, css: '#9be84a', plant: 'Dawn Sprig', feeling: 'Looking ahead, opening up' },
-  { id: 'courage', name: 'Courage', color: 0xff7a2e, soft: 0xffc79f, css: '#ff7a2e', plant: 'Emberthorn', feeling: 'Steady, determined, bold' },
-  { id: 'sorrow', name: 'Sorrow', color: 0x6f86ff, soft: 0xc3ccff, css: '#6f86ff', plant: 'Rain Willow', feeling: 'Heavy, tender, missing something' },
+  { id: 'joy', name: 'Joy', css: '#ffc533', feeling: 'Bright, playful, glad', tree: 'Broadleaf', asset: 'island_tree_02', height: 11, flowering: false, conifer: false },
+  { id: 'calm', name: 'Calm', css: '#3fd6c8', feeling: 'Settled, quiet, at ease', tree: 'Shade tree', asset: 'tree_small_02', height: 8, flowering: false, conifer: false },
+  { id: 'love', name: 'Love', css: '#ff5c9a', feeling: 'Warm, close, grateful', tree: 'Jacaranda', asset: 'jacaranda_tree', height: 10, flowering: true, conifer: false },
+  { id: 'hope', name: 'Hope', css: '#9be84a', feeling: 'Looking ahead, opening up', tree: 'Young fir', asset: 'fir_sapling', height: 3.2, flowering: false, conifer: true },
+  { id: 'courage', name: 'Courage', css: '#ff7a2e', feeling: 'Steady, determined, bold', tree: 'Quiver tree', asset: 'quiver_tree_02', height: 5.5, flowering: false, conifer: false },
+  { id: 'sorrow', name: 'Sorrow', css: '#6f86ff', feeling: 'Heavy, tender, missing something', tree: 'Evergreen thicket', asset: 'searsia_lucida', height: 4.5, flowering: true, conifer: false },
 ];
 
 export const MOOD_BY_ID = Object.fromEntries(MOODS.map((m) => [m.id, m])) as Record<MoodId, MoodDef>;
