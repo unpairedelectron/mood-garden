@@ -399,6 +399,7 @@ export class Forest {
       im.receiveShadow = true;
       im.frustumCulled = false;
       im.userData.variant = vi;
+      this.grass.push(im);
       this.group.add(im);
     });
     tick();
@@ -482,6 +483,12 @@ export class Forest {
 
   get speciesList() {
     return [...this.species.values()];
+  }
+
+  private grass: THREE.InstancedMesh[] = [];
+  /** Share of grass clumps drawn (the biggest single cost on a phone). */
+  setGrassDensity(k: number) {
+    for (const im of this.grass) im.count = Math.round(im.instanceMatrix.count * k);
   }
 
   setWorldMask(t: THREE.Texture) {

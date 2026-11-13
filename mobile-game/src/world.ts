@@ -80,6 +80,31 @@ export class World {
   private fwd = new THREE.Vector3();
   private pulse: THREE.Mesh;
   private pulseT = 9;
+  /** ?stats: a small overlay for tuning on real devices. */
+  private stats = new URLSearchParams(location.search).has('stats') ? this.makeStats() : null;
+  private makeStats() {
+    const el = document.createElement('pre');
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99;margin:0;padding:6px 8px;font:11px/1.35 ui-monospace,monospace;color:#cfe;background:rgba(0,0,0,.55);border-radius:6px;pointer-events:none';
+    document.body.appendChild(el);
+    let acc = 0, n = 0, worst = 0;
+    return (raw: number) => {
+      acc += raw;
+      n++;
+      worst = Math.max(worst, raw);
+      if (acc < 0.5) return;
+      const info = this.renderer.info.render;
+      const gl = this.renderer.getContext();
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      el.textContent = [
+        `${(n / acc).toFixed(0)} fps · avg ${((acc / n) * 1000).toFixed(1)} ms · worst ${(worst * 1000).toFixed(0)} ms`,
+        `${info.calls} draws · ${(info.triangles / 1000).toFixed(0)}k tris `,
+        `quality ${this.quality} · res ×${this.resScale.toFixed(2)} · ${this.renderer.getPixelRatio().toFixed(2)} dpr`,
+        dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)).slice(0, 48) : '',
+      ].join('\n');
+      acc = n = worst = 0;
+    };
+  }
+
   /** False while the title card is up: the camera drifts and nothing grows. */
   active = false;
   persist = true;
@@ -93,6 +118,8 @@ export class World {
     // Anti-aliasing happens in the HDR target, so the canvas itself needs none.
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // Count a whole frame (scene, shafts, composite) for the stats overlay.
+    this.renderer.info.autoReset = false;
     this.quality = detectQuality(this.renderer);
     this.post = new Post(this.quality);
     if (this.quality === 'low') this.resScale = 0.8;
@@ -205,6 +232,7 @@ export class World {
     const hTex = heightTexture();
     await this.forest.load(hTex, aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
     this.forest.setWorldMask(this.paths.texture);
+    this.forest.setGrassDensity(this.quality === 'low' ? 0.4 : this.quality === 'medium' ? 0.7 : 1);
     this.scene.add(new Water(this.sky, hTex).group);
     await this.nearTrees.load(this.forest.speciesList, aniso);
     await this.fauna.load();
@@ -212,7 +240,10 @@ export class World {
     this.scene.add(this.forest.group, this.nearTrees.group, this.life.group, this.fauna.group);
 
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    // Shadow detail and how many trees are drawn in full scale with the device.
+    const shadow = this.quality === 'low' ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(shadow, shadow);
+    this.nearTrees.range = this.quality === 'low' ? 0.65 : this.quality === 'medium' ? 0.85 : 1;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.05;
     const sc = this.sun.shadow.camera;
@@ -447,7 +478,8 @@ export class World {
   private resize = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * this.resScale);
+    const cap = this.quality === 'low' ? 1.5 : this.quality === 'medium' ? 1.75 : 2;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap) * this.resScale);
     this.renderer.setSize(w, h, false);
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.post.setSize(size.x, size.y);
@@ -612,6 +644,7 @@ export class World {
   }
 
   private tick(dt: number, raw: number, render: boolean) {
+    this.renderer.info.reset();
     this.time += dt;
     LIGHT.uTime.value = this.time;
     this.atmosphere(dt);
@@ -745,6 +778,7 @@ export class World {
     } else this.pulse.visible = false;
 
     if (render) this.draw();
+    this.stats?.(raw);
 
     this.saveIn -= dt;
     if (this.saveIn <= 0) {

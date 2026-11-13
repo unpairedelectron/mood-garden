@@ -5,7 +5,7 @@ import './style.css';
 import { AudioEngine } from './audio';
 import { Clock, dayNumber } from './clock';
 import { MOODS, MOOD_BY_ID, type MoodId } from './moods';
-import { haptic, isNative, notificationsAllowed, reschedule, shareImage } from './native';
+import { haptic, initNative, isNative, notificationsAllowed, reschedule, shareImage } from './native';
 import { applyAway, clearSave, loadSave, writeSave, MAX_TREES, type TreeSave } from './state';
 import { World } from './world';
 import { drawMap, yearHtml } from './year';
@@ -515,6 +515,15 @@ const clock = new Clock();
 const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, clock, { toast, change: refresh, caption, met });
 if (import.meta.env.DEV) Object.assign(window as unknown as Record<string, unknown>, { __world: world, __ui: { tour, yearSheet, walkSheet, plantSheet, menuSheet, photoMode, offerAnniversary } });
 
+const native = initNative({
+  pause: () => {
+    audio.suspend(true);
+    writeSave(save);
+    void reschedule(save);
+  },
+  resume: () => audio.suspend(false),
+});
+
 const skyPill = $('#skyPill');
 const updateSky = () => (skyPill.textContent = clock.describe());
 updateSky();
@@ -531,6 +540,7 @@ world
     $('#splash').classList.add('is-ready');
     $('#begin').hidden = false;
     refresh();
+    void native.then((n) => n.ready());
   })
   .catch((err) => {
     console.error(err);

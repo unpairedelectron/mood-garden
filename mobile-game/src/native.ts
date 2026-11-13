@@ -60,6 +60,35 @@ export async function shareImage(dataUrl: string, name: string): Promise<'shared
   return 'saved';
 }
 
+/** Native shell set-up: full-screen status bar, splash hand-off, pause and resume. */
+export async function initNative(hooks: { pause: () => void; resume: () => void }) {
+  if (!isNative) return { ready: async () => {} };
+  try {
+    const { StatusBar, Style } = await import('@capacitor/status-bar');
+    await StatusBar.setOverlaysWebView({ overlay: true });
+    await StatusBar.setStyle({ style: Style.Dark });
+  } catch {
+    /* not available on this platform */
+  }
+  try {
+    const { App } = await import('@capacitor/app');
+    await App.addListener('appStateChange', ({ isActive }) => (isActive ? hooks.resume() : hooks.pause()));
+  } catch {
+    /* no app events */
+  }
+  return {
+    /** Hide the launch screen once the grove has drawn its first frame. */
+    ready: async () => {
+      try {
+        const { SplashScreen } = await import('@capacitor/splash-screen');
+        await SplashScreen.hide({ fadeOutDuration: 400 });
+      } catch {
+        /* no splash */
+      }
+    },
+  };
+}
+
 // ----------------------------------------------------------- notifications
 
 interface Planned {
@@ -155,7 +184,8 @@ export async function reschedule(save: Save) {
     const items = plan(save);
     if (items.length) {
       await LocalNotifications.schedule({
-        notifications: items.map((n) => ({ id: n.id, title: n.title, body: n.body, schedule: { at: n.at, allowWhileIdle: true } })),
+        // Inexact delivery is fine for a calm app and needs no exact-alarm permission on Android.
+        notifications: items.map((n) => ({ id: n.id, title: n.title, body: n.body, schedule: { at: n.at } })),
       });
     }
   } catch {

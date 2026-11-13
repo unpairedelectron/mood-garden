@@ -299,9 +299,11 @@ export class AudioEngine {
     this.intensity = ids.length / 6;
   }
 
+  /** Backgrounded: stop the audio clock entirely (saves battery); resume on return. */
   suspend(on: boolean) {
     if (!this.ctx) return;
-    this.master.gain.setTargetAtTime(on ? this.volMaster * 0.25 : this.volMaster, this.ctx.currentTime, 0.2);
+    if (on) void this.ctx.suspend();
+    else void this.ctx.resume();
   }
 
   // ----------------------------------------------------------------- voices
