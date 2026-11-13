@@ -136,7 +136,7 @@ const DEPTH_FRAG = /* glsl */ `
 uniform sampler2D uAlbedo;
 uniform float uCover, uCanopyBase;
 varying vec2 vUv0;
-varying float vSeed, vH;
+varying float vSeed, vH, vFade;
 float hsh(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 45758.5453); }
 float vn(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -144,6 +144,8 @@ float vn(vec2 p) {
   return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y);
 }
 void main() {
+  // The full 3D tree takes over the shadow once it is mostly faded in.
+  if (vFade < .5) discard;
   vec4 al = texture2D(uAlbedo, vUv0);
   if (al.a < .5) discard;
   float leafy = step(.006, al.g - max(al.r, al.b)) * step(uCanopyBase * .6, vH);

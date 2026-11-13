@@ -8,6 +8,7 @@ import { Precipitation } from './precip';
 import { Post, detectQuality, type Quality } from './post';
 import { Sky } from './sky';
 import { Forest, LIGHT } from './forest';
+import { NearTrees } from './neartrees';
 import { Wildlife } from './life';
 import { MOOD_BY_ID, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
@@ -24,6 +25,7 @@ export interface WorldEvents {
 
 export class World {
   readonly forest = new Forest();
+  readonly nearTrees = new NearTrees();
   readonly life: Wildlife;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -171,7 +173,8 @@ export class World {
     this.scene.add(terrain);
 
     await this.forest.load(heightTexture(), aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
-    this.scene.add(this.forest.group, this.life.group);
+    await this.nearTrees.load(this.forest.speciesList, aniso);
+    this.scene.add(this.forest.group, this.nearTrees.group, this.life.group);
 
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -476,6 +479,7 @@ export class World {
     this.sun.target.updateMatrixWorld();
 
     this.forest.setFocus(this.pos);
+    this.nearTrees.update(this.forest.speciesList, this.camera.position);
     const arrivals = this.life.update(dt, this.time, this.camera, this.pos);
     for (const a of arrivals) this.ev.met(a);
 
