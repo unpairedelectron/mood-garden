@@ -3,6 +3,7 @@ import '@fontsource/cormorant-garamond/400-italic.css';
 import '@fontsource-variable/inter';
 import './style.css';
 import { AudioEngine } from './audio';
+import { Clock } from './clock';
 import { MOODS, MOOD_BY_ID, type MoodId } from './moods';
 import { applyAway, clearSave, loadSave, writeSave, MAX_TREES, type TreeSave } from './state';
 import { World } from './world';
@@ -242,7 +243,8 @@ function menuSheet() {
 }
 
 // -------------------------------------------------------------------- boot
-const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, { toast, change: refresh, caption, met });
+const clock = new Clock();
+const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, clock, { toast, change: refresh, caption, met });
 if (import.meta.env.DEV) (window as unknown as { __world: World }).__world = world;
 
 world

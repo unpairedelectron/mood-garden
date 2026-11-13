@@ -13,15 +13,21 @@ export interface MoodDef {
   height: number;
   flowering: boolean;
   conifer: boolean;
+  /** Drops its leaves in winter and turns in autumn. */
+  deciduous: boolean;
+  /** Autumn leaf colour (linear RGB multipliers on leaf luminance). */
+  autumn: [number, number, number];
+  /** Blossom colour in its flowering season, if any. */
+  blossom: [number, number, number] | null;
 }
 
 export const MOODS: MoodDef[] = [
-  { id: 'joy', name: 'Joy', css: '#ffc533', feeling: 'Bright, playful, glad', tree: 'Broadleaf', asset: 'island_tree_02', height: 11, flowering: false, conifer: false },
-  { id: 'calm', name: 'Calm', css: '#3fd6c8', feeling: 'Settled, quiet, at ease', tree: 'Shade tree', asset: 'tree_small_02', height: 8, flowering: false, conifer: false },
-  { id: 'love', name: 'Love', css: '#ff5c9a', feeling: 'Warm, close, grateful', tree: 'Jacaranda', asset: 'jacaranda_tree', height: 10, flowering: true, conifer: false },
-  { id: 'hope', name: 'Hope', css: '#9be84a', feeling: 'Looking ahead, opening up', tree: 'Young fir', asset: 'fir_sapling', height: 3.2, flowering: false, conifer: true },
-  { id: 'courage', name: 'Courage', css: '#ff7a2e', feeling: 'Steady, determined, bold', tree: 'Quiver tree', asset: 'quiver_tree_02', height: 5.5, flowering: false, conifer: false },
-  { id: 'sorrow', name: 'Sorrow', css: '#6f86ff', feeling: 'Heavy, tender, missing something', tree: 'Evergreen thicket', asset: 'searsia_lucida', height: 4.5, flowering: true, conifer: false },
+  { id: 'joy', name: 'Joy', css: '#ffc533', feeling: 'Bright, playful, glad', tree: 'Broadleaf', asset: 'island_tree_02', height: 11, flowering: false, conifer: false, deciduous: true, autumn: [1.9, 1.15, 0.22], blossom: null },
+  { id: 'calm', name: 'Calm', css: '#3fd6c8', feeling: 'Settled, quiet, at ease', tree: 'Shade tree', asset: 'tree_small_02', height: 8, flowering: false, conifer: false, deciduous: true, autumn: [2.1, 0.62, 0.18], blossom: null },
+  { id: 'love', name: 'Love', css: '#ff5c9a', feeling: 'Warm, close, grateful', tree: 'Jacaranda', asset: 'jacaranda_tree', height: 10, flowering: true, conifer: false, deciduous: true, autumn: [1.7, 1.3, 0.3], blossom: [0.95, 0.55, 1.6] },
+  { id: 'hope', name: 'Hope', css: '#9be84a', feeling: 'Looking ahead, opening up', tree: 'Young fir', asset: 'fir_sapling', height: 3.2, flowering: false, conifer: true, deciduous: false, autumn: [1, 1, 1], blossom: null },
+  { id: 'courage', name: 'Courage', css: '#ff7a2e', feeling: 'Steady, determined, bold', tree: 'Quiver tree', asset: 'quiver_tree_02', height: 5.5, flowering: false, conifer: false, deciduous: false, autumn: [1, 1, 1], blossom: [2.2, 0.9, 0.25] },
+  { id: 'sorrow', name: 'Sorrow', css: '#6f86ff', feeling: 'Heavy, tender, missing something', tree: 'Evergreen thicket', asset: 'searsia_lucida', height: 4.5, flowering: true, conifer: false, deciduous: false, autumn: [1.3, 0.9, 0.5], blossom: [1.6, 1.6, 1.5] },
 ];
 
 export const MOOD_BY_ID = Object.fromEntries(MOODS.map((m) => [m.id, m])) as Record<MoodId, MoodDef>;
