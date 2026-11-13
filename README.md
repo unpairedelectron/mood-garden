@@ -6,6 +6,7 @@ Two 3D games about a garden that grows from how you feel, plus the earlier mood-
 | --- | --- |
 | [`AAA-pc-game/`](AAA-pc-game/README.md) | **Mood Garden** for PC: a third-person exploration game. Restore a colourless island by gathering motes of feeling and waking six groves. Keyboard and mouse or gamepad; wants a dedicated GPU. |
 | [`mobile-game/`](mobile-game/README.md) | **Mood Garden** for phones: plant a forest from how you feel and walk through it in first person. Photo-scanned trees, plants and skies (Poly Haven, CC0); ferns, flowers and wildlife arrive on their own as the forest grows. Touch-first, installable to the home screen. |
+| [`mobile-game-expo/`](mobile-game-expo/README.md) | Expo Go shell that shows the mobile game full-screen in a web view, for testing on a phone. |
 | `backend/`, `mobile/`, `shared/` | The original mood-tracker (Express API, Expo app, shared types). Unchanged; neither game depends on them. |
 
 The PC game generates everything at runtime. The mobile game ships about 15 MB of scanned assets; its music and sound are synthesised.
