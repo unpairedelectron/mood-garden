@@ -13,7 +13,7 @@ import { Fauna } from './fauna';
 import { Wildlife } from './life';
 import { MOOD_BY_ID, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
-import { HILL, WORLD, heightAt, heightTexture, terrainGeometry, waterAt, waterDepth } from './terrain';
+import { HILL, WORLD, heightAt, heightTexture, pondShape, streamNearest, terrainGeometry, waterAt, waterDepth } from './terrain';
 import { Paths } from './paths';
 import { Water } from './water';
 
@@ -47,6 +47,8 @@ export class World {
   readonly paths = new Paths();
   private pathIn = 0;
   private syncedAt = new THREE.Vector2();
+  private hearIn = 0;
+  private hear = { stream: 0, pond: 0, canopy: 0 };
   /** What is underfoot, for footsteps. */
   surface: 'grass' | 'leaves' | 'path' | 'water' | 'snow' | 'stone' = 'grass';
   private snowCover = 0;
@@ -674,14 +676,40 @@ export class World {
     for (const a of arrivals) this.ev.met(a);
 
     const grown = this.grown;
+    // Where sound comes from: water nearby, canopy overhead. Sampled a few times a second.
+    this.hearIn -= dt;
+    if (this.hearIn <= 0) {
+      this.hearIn = 0.25;
+      const sn = streamNearest(this.pos.x, this.pos.z);
+      this.hear.stream = Math.max(0, 1 - Math.max(0, sn.d - 1.5) / 22);
+      this.hear.pond = Math.min(1, Math.max(0, pondShape(this.pos.x, this.pos.z) + 0.9));
+      let cover = 0;
+      for (const t of this.save.trees) {
+        const reach = 2 + MOOD_BY_ID[t.mood].height * 0.45 * Math.min(1, t.growth);
+        const d = Math.hypot(t.x - this.pos.x, t.z - this.pos.z);
+        if (d < reach * 2) cover += (1 - d / (reach * 2)) * Math.min(1, t.growth);
+      }
+      this.hear.canopy = Math.min(1, cover / 3);
+    }
+    this.camera.getWorldDirection(this.fwd);
+    this.audio.listen(this.camera.position, this.fwd);
+    const fc = this.faunaContext();
+    const w = this.clock.weather;
     this.audio.update(dt, {
+      hour: this.clock.hour,
       day: this.clock.day,
+      dawn: fc.dawn,
+      dusk: fc.dusk,
       vitality: grown >= 4 ? 1 : grown >= 2 ? 0.4 : 0,
-      shore: 0,
-      rain: this.clock.weather.rain,
+      rain: w.rain,
+      snow: w.snow,
+      wind: w.wind,
+      stream: this.hear.stream,
+      pond: this.hear.pond,
+      canopy: this.hear.canopy,
       speed: this.vel.length(),
-      gliding: false,
       life: Math.min(1, grown / 6),
+      season: this.clock.season.name,
     });
 
     // Name the tree you are standing in front of.
