@@ -321,13 +321,13 @@ export class AudioEngine {
   }
 
   // -------------------------------------------------------------------- sfx
-  footstep(surface: 'grass' | 'sand' | 'stone' | 'water', run: boolean) {
+  footstep(surface: 'grass' | 'leaves' | 'path' | 'sand' | 'snow' | 'stone' | 'water', run: boolean) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const v = (run ? 0.085 : 0.055) * (0.8 + Math.random() * 0.4);
     if (surface === 'water') {
       this.noiseHit(this.sfxBus, t, 0.26, v * 1.5, 'bandpass', 900 + Math.random() * 300, 380, 0.9);
-    } else if (surface === 'sand') {
+    } else if (surface === 'sand' || surface === 'path' || surface === 'snow') {
       this.noiseHit(this.sfxBus, t, 0.12, v, 'bandpass', 700 + Math.random() * 200, 500, 0.7);
     } else if (surface === 'stone') {
       this.noiseHit(this.sfxBus, t, 0.05, v * 1.2, 'bandpass', 1500 + Math.random() * 400, 900, 2);

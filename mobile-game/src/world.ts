@@ -12,7 +12,9 @@ import { NearTrees } from './neartrees';
 import { Wildlife } from './life';
 import { MOOD_BY_ID, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
-import { WORLD, heightAt, heightTexture, terrainGeometry } from './terrain';
+import { HILL, WORLD, heightAt, heightTexture, terrainGeometry, waterAt, waterDepth } from './terrain';
+import { Paths } from './paths';
+import { Water } from './water';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
 
@@ -40,6 +42,10 @@ export class World {
   readonly post: Post;
   readonly clock: Clock;
   private precip = new Precipitation();
+  readonly paths = new Paths();
+  private pathIn = 0;
+  /** What is underfoot, for footsteps. */
+  surface: 'grass' | 'leaves' | 'path' | 'water' | 'snow' | 'stone' = 'grass';
   private snowCover = 0;
   private seasonIn = 0;
   private wasNight = false;
@@ -117,12 +123,16 @@ export class World {
       if (srgb) t.colorSpace = THREE.SRGBColorSpace;
       return t;
     };
-    const [gd, gn, ga, ld] = await Promise.all([
+    const [gd, gn, ga, ld, dd, pd] = await Promise.all([
       tex('forrest_ground_01_diffuse', true),
       tex('forrest_ground_01_nor_gl', false),
       tex('forrest_ground_01_arm', false),
       tex('leaves_forest_ground_diffuse', true),
+      tex('dirt_floor_diffuse', true),
+      tex('dry_river_pebbles_diffuse', true),
     ]);
+    const daysAway = Math.max(0, (Date.now() - this.save.lastSeen) / 864e5);
+    this.paths.load(this.save.paths, daysAway);
     const cv = document.createElement('canvas');
     cv.width = cv.height = 256;
     this.maskCtx = cv.getContext('2d')!;
@@ -135,11 +145,14 @@ export class World {
       s.uniforms.uSeason = LIGHT.uSeason;
       s.uniforms.uSnow = LIGHT.uSnow;
       s.uniforms.uWet = LIGHT.uWet;
+      s.uniforms.uWorldMask = { value: this.paths.texture };
+      s.uniforms.uDirt = { value: dd };
+      s.uniforms.uPebble = { value: pd };
       s.vertexShader = s.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;')
         .replace('#include <begin_vertex>', `#include <begin_vertex>\nvWuv = position.xz / ${WORLD.toFixed(1)} + .5;`);
       s.fragmentShader = s.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;\nuniform sampler2D uLitter, uMask;\nuniform vec4 uSeason;\nuniform float uSnow, uWet;')
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;\nuniform sampler2D uLitter, uMask, uWorldMask, uDirt, uPebble;\nuniform vec4 uSeason;\nuniform float uSnow, uWet;')
         .replace(
           '#include <map_fragment>',
           `// Two scales of each photo-texture hide the repeat; leaf litter takes over under trees.
@@ -157,6 +170,17 @@ export class World {
            m = max(m, fall * smoothstep(.35, .75, macro + g1.r * .4));
            vec3 tint = uSeason.x * vec3(.95, 1.06, .85) + uSeason.y * vec3(1.06, 1.0, .8) + uSeason.z * vec3(1.1, .92, .7) + uSeason.w * vec3(.9, .88, .84);
            diffuseColor *= mix(grassC * vec4(tint, 1.), litterC * vec4(.8, .78, .7, 1.), m * .8);
+           // Trodden paths: bare earth with a ragged edge where you walk most.
+           vec4 wm = texture2D(uWorldMask, vWuv);
+           float worn = smoothstep(.2, .55, wm.r + (macro - .5) * .35 + (g1.g - .3) * .3);
+           vec3 dirt = mix(texture2D(uDirt, vMapUv * .9).rgb, texture2D(uDirt, vMapUv * .21 + .3).rgb, .35);
+           diffuseColor.rgb = mix(diffuseColor.rgb, dirt * vec3(.74, .7, .66), worn * .9);
+           // Stream and pond beds: pebbles and dark wet mud, wet banks around them.
+           float bed = smoothstep(.15, .6, wm.g);
+           vec3 peb = texture2D(uPebble, vMapUv * 1.4).rgb;
+           diffuseColor.rgb = mix(diffuseColor.rgb, peb * vec3(.55, .52, .45), bed);
+           float bank = smoothstep(.0, .2, wm.g) * (1. - bed);
+           diffuseColor.rgb *= 1. - bank * .35;
            // Rain darkens the ground; snow lies in drifts, thinner under trees.
            diffuseColor.rgb *= 1. - uWet * .32;
            float drift = smoothstep(.25, .6, uSnow * (1.15 - m * .5) + (macro - .45) * .6);
@@ -165,14 +189,17 @@ export class World {
         .replace(
           '#include <roughnessmap_fragment>',
           `#include <roughnessmap_fragment>
-           roughnessFactor = mix(roughnessFactor, .62, uWet * .6);`,
+           roughnessFactor = mix(roughnessFactor, .62, max(uWet * .6, smoothstep(.0, .3, texture2D(uWorldMask, vWuv).g) * .5));`,
         );
     };
     const terrain = new THREE.Mesh(terrainGeometry(), ground);
     terrain.receiveShadow = true;
     this.scene.add(terrain);
 
-    await this.forest.load(heightTexture(), aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
+    const hTex = heightTexture();
+    await this.forest.load(hTex, aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
+    this.forest.setWorldMask(this.paths.texture);
+    this.scene.add(new Water(this.sky, hTex).group);
     await this.nearTrees.load(this.forest.speciesList, aniso);
     this.scene.add(this.forest.group, this.nearTrees.group, this.life.group);
 
@@ -250,6 +277,8 @@ export class World {
       const x = this.pos.x - Math.sin(a) * dist;
       const z = this.pos.z - Math.cos(a) * dist;
       if (Math.hypot(x, z) > GARDEN_RADIUS) continue;
+      // Not in the water, nor on its very edge.
+      if (waterAt(x, z) !== null || waterAt(x + 1.2, z) !== null || waterAt(x - 1.2, z) !== null || waterAt(x, z + 1.2) !== null || waterAt(x, z - 1.2) !== null) continue;
       if (this.save.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 2.6)) continue;
       const tree: TreeSave = { id: this.save.nextId++, mood, note: note.trim().slice(0, 120), planted: Date.now(), x, z, rot: Math.random() * 6.28, growth: 0 };
       this.save.trees.push(tree);
@@ -275,6 +304,7 @@ export class World {
   }
 
   private store() {
+    this.save.paths = this.paths.encode();
     this.save.px = this.pos.x;
     this.save.pz = this.pos.z;
     this.save.yaw = this.yaw;
@@ -367,6 +397,15 @@ export class World {
         nz = t.z + (dz / d) * r;
       }
     }
+    // Wade the stream and the pond's shallows; deeper water turns you back.
+    if (waterDepth(nx, nz) > 0.55) {
+      if (waterDepth(nx, this.pos.z) <= 0.55) nz = this.pos.z;
+      else if (waterDepth(this.pos.x, nz) <= 0.55) nx = this.pos.x;
+      else {
+        nx = this.pos.x;
+        nz = this.pos.z;
+      }
+    }
     // The mist thickens at the edge of the land and turns you gently back.
     const R = Math.hypot(nx, nz);
     const limit = GARDEN_RADIUS + 14;
@@ -381,12 +420,29 @@ export class World {
       this.bob += dt * v * 3.4;
       const before = Math.floor(this.stepPhase);
       this.stepPhase += dt * v * 0.72;
-      if (Math.floor(this.stepPhase) !== before) this.audio.footstep('grass', v > 3);
+      if (Math.floor(this.stepPhase) !== before) {
+        this.surface = this.surfaceAt(nx, nz);
+        this.audio.footstep(this.surface, v > 3);
+        if (this.surface !== 'water') this.paths.step(nx, nz);
+      }
       if (this.save.tutorial < 1 && this.stepPhase > 6) {
         this.save.tutorial = 1;
         this.ev.change();
       }
     }
+  }
+
+  /** What the ground is like here, for footsteps. */
+  private surfaceAt(x: number, z: number): World['surface'] {
+    if (waterDepth(x, z) > 0.03) return 'water';
+    if (this.snowCover > 0.45) return 'snow';
+    if (this.paths.at(x, z) > 0.35) return 'path';
+    if (Math.hypot(x - HILL.x, z - HILL.z) < 2.2) return 'stone';
+    for (const t of this.save.trees) {
+      const reach = 1.2 + MOOD_BY_ID[t.mood].height * 0.35 * Math.min(1, t.growth);
+      if (Math.hypot(t.x - x, t.z - z) < reach) return 'leaves';
+    }
+    return this.clock.season.autumn > 0.5 ? 'leaves' : 'grass';
   }
 
   /** Dev: stop the real-time loop so frames can be stepped and captured by tests. */
@@ -479,6 +535,11 @@ export class World {
     this.sun.target.updateMatrixWorld();
 
     this.forest.setFocus(this.pos);
+    this.pathIn -= dt;
+    if (this.pathIn <= 0) {
+      this.pathIn = 2;
+      this.paths.flush();
+    }
     this.nearTrees.update(this.forest.speciesList, this.camera.position);
     const arrivals = this.life.update(dt, this.time, this.camera, this.pos);
     for (const a of arrivals) this.ev.met(a);

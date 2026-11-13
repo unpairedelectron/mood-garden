@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { MOODS, MOOD_BY_ID, type MoodDef, type MoodId } from './moods';
 import type { TreeSave } from './state';
-import { WORLD, heightAt } from './terrain';
+import { HILL, WORLD, heightAt, waterAt } from './terrain';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
 
@@ -476,6 +476,10 @@ export class Forest {
     return [...this.species.values()];
   }
 
+  setWorldMask(t: THREE.Texture) {
+    this.grassU.uWorldMask.value = t;
+  }
+
   setFocus(p: THREE.Vector3) {
     this.grassU.uCenter.value.copy(p);
   }
@@ -484,6 +488,8 @@ export class Forest {
   private put(kind: string, variant: number, x: number, z: number, scale: number, yaw: number, tilt = 0, sink = 0) {
     const k = this.kinds.get(kind);
     if (!k) return;
+    // Nothing grows in open water.
+    if (waterAt(x, z) !== null) return;
     const im = k.meshes[variant % k.meshes.length];
     if (im.count >= im.instanceMatrix.count) return;
     this.q.setFromEuler(this.e.set(tilt, yaw, tilt * 0.6));
@@ -506,11 +512,15 @@ export class Forest {
       const d = 12 + r() * 50;
       this.put('tree_stump_01', 0, Math.cos(a) * d, Math.sin(a) * d, 0.9 + r() * 0.5, r() * 6.28, 0, 0.03);
     }
+    // A broad flat rock on the hilltop to sit on and look out over the grove.
+    this.put('rock_07', 0, HILL.x + 0.6, HILL.z - 0.4, 2.2, 0.8, 0, 0.35);
+    this.put('rock_moss_set_01', 1, HILL.x - 2.5, HILL.z + 1.8, 1.4, 2.1, 0.1, 0.12);
     this.sceneryMark();
     const ids: MoodId[] = ['joy', 'calm', 'hope', 'sorrow', 'joy', 'calm', 'love'];
     for (let i = 0; i < 120; i++) {
       const a = r() * 6.28;
       const d = 66 + r() * 52;
+      if (waterAt(Math.cos(a) * d, Math.sin(a) * d) !== null || waterAt(Math.cos(a) * d + 2, Math.sin(a) * d) !== null) continue;
       this.wild.push({ id: -i - 1, mood: ids[i % ids.length], note: '', planted: 0, x: Math.cos(a) * d, z: Math.sin(a) * d, rot: r() * 6.28, growth: 0.75 + r() * 0.5 });
     }
   }

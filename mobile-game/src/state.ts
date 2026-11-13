@@ -25,6 +25,8 @@ export interface Save {
   /** Creatures the player has already been told about. */
   met: string[];
   tutorial: number;
+  /** Desire-path wear, base64 (see paths.ts). */
+  paths?: string;
 }
 
 const KEY = 'moodgarden.grove.v1';
