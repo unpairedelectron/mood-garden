@@ -1,35 +1,27 @@
-# MoodGarden
+# Mood Garden
 
-MoodGarden is a cross-platform mental wellness app that transforms your daily moods into a dynamic virtual garden, using AI to personalize growth and self-care insights.
+Two 3D games about a garden that grows from how you feel, plus the earlier mood-tracker app.
 
-## Core Features (MVP)
-- **Mood Input System:** Multi-modal input (text, emoji slider, voice note with transcription), AI sentiment/context analysis.
-- **Dynamic Garden Engine:** Mood-to-plant algorithm, growth stages, and evolving garden visuals.
-- **AI Wellness Coach:** Metaphorical self-care tips and micro-habit suggestions.
-- **Progress Tracking:** Calendar/timeline of moods and garden biome changes.
+| Folder | What it is |
+| --- | --- |
+| [`AAA-pc-game/`](AAA-pc-game/README.md) | **Mood Garden** for PC: a third-person exploration game. Restore a colourless island by gathering motes of feeling and waking six groves. Keyboard and mouse or gamepad; wants a dedicated GPU. |
+| [`mobile-game/`](mobile-game/README.md) | **Mood Garden** for phones: plant a forest from how you feel and walk through it in first person. Photo-scanned trees, plants and skies (Poly Haven, CC0); ferns, flowers and wildlife arrive on their own as the forest grows. Touch-first, installable to the home screen. |
+| [`mobile-game-expo/`](mobile-game-expo/README.md) | Expo Go shell that shows the mobile game full-screen in a web view, for testing on a phone. |
+| `backend/`, `mobile/`, `shared/` | The original mood-tracker (Express API, Expo app, shared types). Unchanged; neither game depends on them. |
 
-## Tech Stack
-- **Frontend:** React + TypeScript (Vite)
-- **Backend:** Node.js + Express + TypeScript
-- **Mobile:** React Native + Expo + TypeScript
-- **Shared:** Common types and API client
-- **AI:** OpenAI API for sentiment/context analysis and coaching
-- **Database:** MongoDB
+The PC game generates everything at runtime. The mobile game ships about 15 MB of scanned assets; its music and sound are synthesised.
 
-## Getting Started
-
-### Prerequisites
-- Node.js 18+ and npm
-- MongoDB (local or cloud)
-- Optional: OpenAI API key for AI features
-- For mobile: Expo CLI (`npm install -g @expo/cli`)
-
-### Frontend Setup (Web)
 ```bash
-npm install
-npm run dev
+cd AAA-pc-game && npm install && npm run dev
 ```
-Runs on http://localhost:5173
+
+```bash
+cd mobile-game && npm install && npm run dev
+```
+
+## Earlier app: backend and mobile
+
+These packages belong to the original mood-tracker and are unchanged.
 
 ### Backend Setup
 ```bash
@@ -67,7 +59,6 @@ npm run build
 
 ### VS Code Tasks
 Use VS Code's built-in task runner:
-- **Vite: Dev Server** - Start web frontend
 - **Backend: Dev Server** - Start API server
 - **Mobile: Expo Start** - Start mobile development server
 - **Mobile: iOS Simulator** - Launch in iOS simulator
@@ -83,7 +74,8 @@ Use VS Code's built-in task runner:
 ## Project Structure
 ```
 mood-garden/
-├── src/                 # Web frontend (React + Vite)
+├── AAA-pc-game/         # The 3D PC game (three.js + React HUD)
+├── mobile-game/         # Mood Garden Pocket, the 3D phone game
 ├── backend/             # API server (Node.js + Express)
 ├── mobile/              # Mobile app (React Native + Expo)
 ├── shared/              # Common types and API client
