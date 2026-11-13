@@ -205,13 +205,31 @@ export class Clock {
     this.forcedWeather = k;
   }
 
+  /** Photo mode: hold the sky at a chosen hour (null lets time run again). */
+  private held: number | null = null;
+  hold(h: number | null) {
+    if (h === null) {
+      if (this.held !== null) this.hour = this.held;
+      this.held = null;
+      return;
+    }
+    if (this.held === null) this.held = this.hour;
+    this.hour = ((h % 24) + 24) % 24;
+  }
+  /** The hour time would be at if photo mode were not holding it. */
+  get realHour() {
+    return this.held ?? this.hour;
+  }
+
   setHour(h: number) {
     this.hour = ((h % 24) + 24) % 24;
   }
 
   update(dt: number) {
     this.elapsed += dt;
-    if (!this.frozen) this.hour = (this.hour + (dt * TIME_LAPSE) / 3600) % 24;
+    const step = (dt * TIME_LAPSE) / 3600;
+    if (this.held !== null) this.held = (this.held + step) % 24;
+    else if (!this.frozen) this.hour = (this.hour + step) % 24;
     const k = this.target();
     const w = this.weather;
     w.kind = k;

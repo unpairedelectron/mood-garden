@@ -170,7 +170,7 @@ interface Species {
   trees: TreeSave[];
 }
 
-const CAP = 160;
+const CAP = 480;
 const quad = () => {
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, -0.5, 1, 0, 0.5, 1, 0], 3));
@@ -296,13 +296,13 @@ export class Forest {
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
     const want: [string, number, number, boolean, number][] = [
       // asset, variants to keep, capacity, casts shadow, typical size in metres
-      ['fern_02', 2, 260, false, 0.75],
-      ['shrub_03', 2, 90, true, 0.95],
+      ['fern_02', 2, 520, false, 0.75],
+      ['shrub_03', 2, 160, true, 0.95],
       ['shrub_02', 1, 60, true, 1.2],
       ['shrub_04', 1, 60, true, 1.0],
-      ['flower_gazania', 2, 260, false, 0.3],
-      ['dandelion_01', 2, 220, false, 0.28],
-      ['periwinkle_plant', 2, 200, false, 0.45],
+      ['flower_gazania', 2, 520, false, 0.3],
+      ['dandelion_01', 2, 420, false, 0.28],
+      ['periwinkle_plant', 2, 400, false, 0.45],
       ['rock_moss_set_01', 3, 50, true, 1.1],
       ['rock_07', 1, 24, true, 1.6],
       ['tree_stump_01', 1, 10, true, 0.8],
@@ -530,7 +530,9 @@ export class Forest {
   }
 
   /** Rebuild every instance from the player's trees. Cheap enough to call each second. */
-  sync(trees: TreeSave[]) {
+  /** Rebuild instances. Understory is only grown around trees near `focus`, which keeps a
+   *  year-old grove of hundreds of trees cheap; the world re-syncs as you walk. */
+  sync(trees: TreeSave[], focus?: { x: number; z: number }) {
     for (const sp of this.species.values()) sp.count = 0;
     for (const [m, n] of this.baseCounts) m.count = n;
     const add = (t: TreeSave) => {
@@ -547,6 +549,7 @@ export class Forest {
     for (const t of this.wild) add(t);
     for (const t of trees) {
       add(t);
+      if (focus && Math.hypot(t.x - focus.x, t.z - focus.z) > 55) continue;
       // The forest floor answers each tree: ferns, shrubs and flowers move in as it grows.
       const life = Math.min(1, Math.max(0, (t.growth - 0.25) / 0.6));
       if (life <= 0) continue;

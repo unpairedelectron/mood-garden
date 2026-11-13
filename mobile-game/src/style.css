@@ -395,3 +395,104 @@ button { cursor: pointer; }
 .splash__bar.is-done { opacity: 0; height: 0; margin: 0; }
 .splash p { margin-bottom: 18px; }
 .splash button[hidden] { display: none; }
+
+/* --------------------------------------------------------- time & ritual */
+.pill--sky { font-size: 12px; color: var(--muted); padding: 0 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.round--icon { color: var(--paper); margin-left: auto; }
+.round--icon + .round { margin-left: 0; }
+.plant.is-done { background: var(--glass); color: var(--paper); border: 1px solid var(--line); box-shadow: none; }
+.sheet__kicker { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); margin: 0 0 6px; }
+.chip { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass); font-size: 13px; }
+.chip.is-on { border-color: var(--gold); color: var(--gold); }
+.cta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 6px; }
+.cta--soft { background: rgba(243, 217, 164, 0.14); color: var(--gold); border: 1px solid rgba(243, 217, 164, 0.4); font-weight: 600; font-size: 14px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin: 10px 0 4px; }
+.seg button { height: 44px; border: 0; background: none; font-size: 13px; color: var(--muted); }
+.seg button.is-on { background: rgba(243, 217, 164, 0.16); color: var(--paper); }
+.memcard { --c: var(--gold); display: grid; gap: 4px; padding: 14px 16px; margin: 6px 0 14px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 10%, transparent); }
+.memcard b { font-family: var(--serif); font-weight: 500; font-size: 22px; color: var(--c); }
+.memcard span { font-size: 12px; color: var(--muted); }
+.memcard em { font-family: var(--serif); font-size: 18px; overflow-wrap: anywhere; }
+.memcard .cta { margin-top: 8px; }
+
+/* Memory walk card: low on the screen so the tree stays in view. */
+.memory {
+  position: absolute;
+  left: 50%;
+  /* Above the stick and Plant button, unless a walk has put them away. */
+  bottom: calc(var(--safe-b) + 132px);
+  width: min(440px, calc(100vw - 28px));
+  transform: translate(-50%, 12px);
+  padding: 14px 16px 12px;
+  border-radius: 20px;
+  background: rgba(14, 22, 34, 0.72);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s, transform 0.5s;
+}
+.memory.is-on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.memory p { margin: 0; }
+.memory__lead { font-family: var(--serif); font-style: italic; font-size: 19px; margin-bottom: 4px !important; }
+.memory__when { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+.memory__what { font-family: var(--serif); font-size: 21px; line-height: 1.25; margin: 4px 0 6px !important; }
+.memory__what em { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.memory .ghost { height: 42px; font-size: 13px; }
+#ui.is-touring .memory { bottom: calc(var(--safe-b) + 22px); }
+.memory.is-on ~ .toast { bottom: calc(var(--safe-b) + 320px); }
+#ui.is-touring .stick, #ui.is-touring .plant, #ui.is-touring .coach { opacity: 0 !important; pointer-events: none; }
+
+/* Year in feelings */
+.years { display: flex; gap: 6px; margin: 8px 0 12px; flex-wrap: wrap; }
+.cal { position: relative; overflow-x: auto; margin: 4px -4px 14px; padding: 0 4px 6px; }
+.cal__months, .cal__grid { display: grid; grid-auto-flow: column; grid-auto-columns: 11px; gap: 3px; }
+.cal__months { grid-template-rows: auto; font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.cal__months span { white-space: nowrap; }
+.cal__grid { grid-template-rows: repeat(7, 11px); }
+.cal__day, .cal__pad { width: 11px; height: 11px; border-radius: 3px; display: block; }
+.cal__day { background: rgba(247, 241, 230, 0.07); border: 0; padding: 0; }
+.cal__day.is-future { background: rgba(247, 241, 230, 0.025); }
+.cal__day.is-today { outline: 1px solid var(--gold); }
+.cal__day.is-on { background: var(--c); box-shadow: 0 0 6px color-mix(in srgb, var(--c) 60%, transparent); }
+.tally { list-style: none; padding: 0; margin: 0 0 6px; display: grid; gap: 6px; }
+.tally li { display: grid; grid-template-columns: 64px 1fr 28px; align-items: center; gap: 10px; font-size: 13px; }
+.tally i { display: block; height: 8px; width: var(--w); min-width: 2px; border-radius: 4px; background: var(--c); }
+.tally b { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.map { border-radius: 18px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 14px; }
+.map canvas { display: block; width: 100%; height: auto; aspect-ratio: 1; }
+.walks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.walk { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 16px; border-radius: 16px; border: 1px solid var(--line); background: none; text-align: left; }
+.walk b { font-family: var(--serif); font-weight: 500; font-size: 20px; }
+.walk span { font-size: 12.5px; color: var(--muted); }
+.walk:disabled { opacity: 0.4; }
+
+/* Photo mode: the HUD steps aside. */
+#ui.is-photo .top > :not(#photoBtn), #ui.is-photo .plant, #ui.is-photo .coach, #ui.is-photo .caption, #ui.is-photo .toast { opacity: 0 !important; pointer-events: none; }
+#ui.is-photo .stick { opacity: 0.35; }
+.photo {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 18px);
+  width: min(420px, calc(100vw - 28px));
+  transform: translate(-50%, 20px);
+  display: grid;
+  gap: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s, transform 0.4s;
+}
+#ui.is-photo .photo { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.photo__looks { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.photo__time { display: grid; grid-template-columns: 48px 1fr; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size: 13px; font-variant-numeric: tabular-nums; }
+.photo__time input { width: 100%; accent-color: var(--gold); }
+.photo__row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.photo__row .ghost { height: 44px; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.shutter { width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--paper); background: rgba(255, 255, 255, 0.12); display: grid; place-items: center; padding: 0; }
+.shutter i { width: 56px; height: 56px; border-radius: 50%; background: var(--paper); transition: transform 0.12s; }
+.shutter:active i { transform: scale(0.9); }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.flash.is-on { animation: flash 0.5s ease-out; }
+@keyframes flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+.shot { display: block; width: 100%; border-radius: 14px; margin: 8px 0 12px; border: 1px solid var(--line); }

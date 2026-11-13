@@ -44,6 +44,7 @@ export class World {
   private precip = new Precipitation();
   readonly paths = new Paths();
   private pathIn = 0;
+  private syncedAt = new THREE.Vector2();
   /** What is underfoot, for footsteps. */
   surface: 'grass' | 'leaves' | 'path' | 'water' | 'snow' | 'stone' = 'grass';
   private snowCover = 0;
@@ -71,6 +72,7 @@ export class World {
   private frameAcc = 0;
   private frames = 0;
   private v = new THREE.Vector3();
+  private v2 = new THREE.Vector2();
   private fwd = new THREE.Vector3();
   private pulse: THREE.Mesh;
   private pulseT = 9;
@@ -259,7 +261,8 @@ export class World {
       g.fillRect(x - r, y - r, r * 2, r * 2);
     }
     this.mask.needsUpdate = true;
-    this.forest.sync(this.save.trees);
+    this.forest.sync(this.save.trees, this.pos);
+    this.syncedAt.set(this.pos.x, this.pos.z);
     this.life.setForest(this.save.trees, this.forest, this.sky.night > 0.5);
     this.wasNight = this.sky.night > 0.5;
     this.audio.setAwakened([...new Set(this.save.trees.filter((t) => t.growth >= 0.6).map((t) => t.mood))]);
@@ -315,6 +318,99 @@ export class World {
   setMove(x: number, y: number) {
     this.moveX = x;
     this.moveY = y;
+    // Taking the stick hands control back from a guided walk.
+    if (this.tour && Math.hypot(x, y) > 0.25) this.endTour(true);
+  }
+
+  // ---------------------------------------------------------- guided walks
+  private tour: {
+    stops: TreeSave[];
+    i: number;
+    dwell: number;
+    arrived: boolean;
+    stuck: number;
+    detour: number;
+    from: THREE.Vector2;
+    arrive: (t: TreeSave, i: number, n: number) => void;
+    done: (interrupted: boolean) => void;
+  } | null = null;
+
+  /** Walk the player past each tree in turn, pausing at each one. */
+  startTour(stops: TreeSave[], arrive: (t: TreeSave, i: number, n: number) => void, done: (interrupted: boolean) => void) {
+    this.endTour(true);
+    if (!stops.length) return;
+    this.tour = { stops, i: 0, dwell: 0, arrived: false, stuck: 0, detour: 0, from: new THREE.Vector2(this.pos.x, this.pos.z), arrive, done };
+  }
+  get touring() {
+    return !!this.tour;
+  }
+  /** Skip to the next stop of a guided walk. */
+  nextStop() {
+    if (this.tour) this.tour.dwell = 0.01;
+  }
+  endTour(interrupted = false) {
+    const t = this.tour;
+    this.tour = null;
+    if (t) t.done(interrupted);
+  }
+
+  /** Steer the walk toward the current stop; returns stick input. */
+  private steer(dt: number): [number, number] {
+    const t = this.tour!;
+    const tree = t.stops[t.i];
+    const dx = tree.x - this.pos.x, dz = tree.z - this.pos.z;
+    const d = Math.hypot(dx, dz);
+    const turnTo = (target: number, rate: number) => {
+      let a = target - this.yaw;
+      a = Math.atan2(Math.sin(a), Math.cos(a));
+      this.yaw += a * Math.min(1, dt * rate);
+    };
+    const stand = 2.4 + MOOD_BY_ID[tree.mood].height * 0.12;
+    if (t.arrived) {
+      // Stand and look up into the tree.
+      turnTo(Math.atan2(-dx, -dz), 2.5);
+      this.pitch += (0.22 - this.pitch) * Math.min(1, dt * 1.5);
+      t.dwell -= dt;
+      if (t.dwell <= 0) {
+        t.i++;
+        t.arrived = false;
+        if (t.i >= t.stops.length) this.endTour(false);
+      }
+      return [0, 0];
+    }
+    if (d < stand) {
+      t.arrived = true;
+      t.dwell = 9;
+      t.arrive(tree, t.i, t.stops.length);
+      return [0, 0];
+    }
+    // Every second and a half, check we are getting somewhere; if not, step around.
+    t.stuck += dt;
+    if (t.stuck > 1.5) {
+      const moved = t.from.distanceTo(new THREE.Vector2(this.pos.x, this.pos.z));
+      if (moved < 0.6) t.detour = 1.4;
+      t.from.set(this.pos.x, this.pos.z);
+      t.stuck = 0;
+    }
+    let want = Math.atan2(-dx, -dz);
+    if (t.detour > 0) {
+      t.detour -= dt;
+      want += 1.1;
+    }
+    turnTo(want, 2.2);
+    this.pitch += (-0.04 - this.pitch) * Math.min(1, dt * 1.2);
+    return [0, d < stand + 3 ? 0.45 : 0.8];
+  }
+
+  // ----------------------------------------------------------------- photo
+  /** Render a clean frame and return it as a JPEG data URL. */
+  capture(): string {
+    this.draw();
+    return this.canvas.toDataURL('image/jpeg', 0.92);
+  }
+  /** Where the walker is and which way they face, for the map. */
+  get whereabouts() {
+    return { x: this.pos.x, z: this.pos.z, yaw: this.yaw };
   }
 
   private bindInput() {
@@ -372,6 +468,7 @@ export class World {
   private walk(dt: number) {
     let x = this.moveX;
     let y = this.moveY;
+    if (this.tour) [x, y] = this.steer(dt);
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) y += 1;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) y -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
@@ -535,6 +632,8 @@ export class World {
     this.sun.target.updateMatrixWorld();
 
     this.forest.setFocus(this.pos);
+    // The understory follows you round a big grove.
+    if (this.syncedAt.distanceTo(this.v2.set(this.pos.x, this.pos.z)) > 12) this.refresh();
     this.pathIn -= dt;
     if (this.pathIn <= 0) {
       this.pathIn = 2;
