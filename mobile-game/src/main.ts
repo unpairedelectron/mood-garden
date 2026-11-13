@@ -227,7 +227,7 @@ function menuSheet() {
       <button class="cta cta--soft" id="walkBtn">Memory walk</button>
     </div>
     <h3>Who lives here</h3>
-    <ul class="goals">${life.map((c) => `<li class="${c.here ? 'is-done' : ''}"><i></i><div><strong>${c.name}</strong><span>${c.here ? 'Living in your grove' : c.needs}</span></div></li>`).join('')}</ul>
+    <ul class="goals">${life.filter((c) => !c.hidden).map((c) => `<li class="${c.here ? 'is-done' : ''}"><i></i><div><strong>${c.name}</strong><span>${c.here ? 'Living in your grove' : c.needs}</span></div></li>`).join('')}</ul>
     <p class="sheet__tip">Nothing here is placed by hand. Ferns, flowers and creatures arrive on their own as your trees grow.</p>
     <h3>Your trees</h3>
     ${trees.length

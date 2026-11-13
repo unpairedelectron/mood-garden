@@ -13,6 +13,8 @@ export interface Creature {
   name: string;
   needs: string;
   here: boolean;
+  /** Not shown at all (an animal whose model is not installed). */
+  hidden?: boolean;
 }
 
 interface Stats {
@@ -136,6 +138,9 @@ export class Wildlife {
     { id: 'fireflies', name: 'Fireflies', needs: 'Three grown trees — visit at night', here: false },
     { id: 'songbirds', name: 'Songbirds', needs: 'Four grown trees', here: false },
     { id: 'flock', name: 'A passing flock', needs: 'Six grown trees of at least three kinds', here: false },
+    { id: 'perching', name: 'Birds in your trees', needs: 'Five grown trees to settle in, by day', here: false },
+    { id: 'deer', name: 'Deer', needs: 'Eight grown trees, two of them broadleaf — at dawn and dusk', here: false, hidden: true },
+    { id: 'fox', name: 'A fox', needs: 'Ten grown trees and a thicket for cover — at dusk', here: false, hidden: true },
   ];
   private butterflies: Butterfly[] = [];
   private wingMats: THREE.MeshStandardMaterial[] = [];

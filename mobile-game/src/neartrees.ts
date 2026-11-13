@@ -541,6 +541,25 @@ export class NearTrees {
     );
   }
 
+  /** Places on the outer canopy where a small bird could sit, in world space. */
+  perches(t: TreeSave, H: number, groundY: number, n: number, seed: number): THREE.Vector3[] {
+    const n0 = this.near.get(t.mood);
+    if (!n0) return [];
+    const p = n0.profile;
+    const r = mulberry(seed);
+    const out: THREE.Vector3[] = [];
+    const c = Math.cos(t.rot), s = Math.sin(t.rot);
+    for (let i = 0; i < n; i++) {
+      const k = 0.25 + r() * 0.6;
+      const y = p.canopyBase + (p.top - p.canopyBase) * k;
+      const rad = p.radius[Math.min(BINS - 1, Math.floor(k * BINS))] * (0.7 + r() * 0.2);
+      const a = r() * Math.PI * 2;
+      const lx = p.lean.x + Math.cos(a) * rad, lz = p.lean.y + Math.sin(a) * rad;
+      out.push(new THREE.Vector3(t.x + (lx * c + lz * s) * H, groundY + y * H, t.z + (-lx * s + lz * c) * H));
+    }
+    return out;
+  }
+
   /** Choose which trees are drawn in full this frame and set every fade. */
   update(species: ImpostorSpecies[], eye: THREE.Vector3) {
     this.order.length = 0;

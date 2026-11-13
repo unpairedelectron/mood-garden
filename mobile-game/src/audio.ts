@@ -320,6 +320,11 @@ export class AudioEngine {
     }
   }
 
+  /** A perched bird sings from where it sits (implemented with spatial audio below). */
+  song(_species: string, _at: { x: number; y: number; z: number }, _listener: unknown) {
+    /* placeholder replaced by the soundscape */
+  }
+
   // -------------------------------------------------------------------- sfx
   footstep(surface: 'grass' | 'leaves' | 'path' | 'sand' | 'snow' | 'stone' | 'water', run: boolean) {
     if (!this.ctx) return;

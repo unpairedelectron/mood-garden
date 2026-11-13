@@ -9,6 +9,7 @@ import { Post, detectQuality, type Quality } from './post';
 import { Sky } from './sky';
 import { Forest, LIGHT } from './forest';
 import { NearTrees } from './neartrees';
+import { Fauna } from './fauna';
 import { Wildlife } from './life';
 import { MOOD_BY_ID, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
@@ -28,6 +29,7 @@ export interface WorldEvents {
 export class World {
   readonly forest = new Forest();
   readonly nearTrees = new NearTrees();
+  readonly fauna = new Fauna(this.nearTrees);
   readonly life: Wildlife;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -203,7 +205,9 @@ export class World {
     this.forest.setWorldMask(this.paths.texture);
     this.scene.add(new Water(this.sky, hTex).group);
     await this.nearTrees.load(this.forest.speciesList, aniso);
-    this.scene.add(this.forest.group, this.nearTrees.group, this.life.group);
+    await this.fauna.load();
+    this.fauna.onSing = (sp, at) => this.audio.song(sp, at, this.camera);
+    this.scene.add(this.forest.group, this.nearTrees.group, this.life.group, this.fauna.group);
 
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -265,6 +269,7 @@ export class World {
     this.syncedAt.set(this.pos.x, this.pos.z);
     this.life.setForest(this.save.trees, this.forest, this.sky.night > 0.5);
     this.wasNight = this.sky.night > 0.5;
+    this.fauna.setForest(this.save.trees);
     this.audio.setAwakened([...new Set(this.save.trees.filter((t) => t.growth >= 0.6).map((t) => t.mood))]);
   }
 
@@ -529,6 +534,22 @@ export class World {
     }
   }
 
+  faunaContext() {
+    const c = this.clock;
+    const [rise, set] = c.daylightHours;
+    const bell = (h: number, centre: number, w: number) => Math.max(0, 1 - Math.abs(((h - centre + 36) % 24) - 12) / w);
+    return {
+      walker: this.pos,
+      walkerSpeed: this.vel.length(),
+      hour: c.hour,
+      day: c.day,
+      dawn: bell(c.hour, rise + 0.6, 1.6),
+      dusk: bell(c.hour, set + 0.2, 1.6),
+      rain: c.weather.rain,
+      trees: this.save.trees,
+    };
+  }
+
   /** What the ground is like here, for footsteps. */
   private surfaceAt(x: number, z: number): World['surface'] {
     if (waterDepth(x, z) > 0.03) return 'water';
@@ -640,6 +661,15 @@ export class World {
       this.paths.flush();
     }
     this.nearTrees.update(this.forest.speciesList, this.camera.position);
+    this.fauna.update(dt, this.time, this.faunaContext());
+    // Big animals appear in the menu only once their models are installed, and count once seen.
+    for (const c of this.life.creatures) {
+      if (c.id === 'perching') c.here = this.fauna.welcome.perching;
+      if (c.id === 'deer' || c.id === 'fox') {
+        c.hidden = !this.fauna.available[c.id];
+        c.here = this.fauna.seen[c.id];
+      }
+    }
     const arrivals = this.life.update(dt, this.time, this.camera, this.pos);
     for (const a of arrivals) this.ev.met(a);
 

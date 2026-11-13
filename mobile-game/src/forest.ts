@@ -171,6 +171,14 @@ interface Species {
 }
 
 const CAP = 480;
+
+/** Height of a tree in metres for its growth, with a little per-tree variety. */
+export function treeHeight(t: TreeSave): number {
+  const def = MOOD_BY_ID[t.mood];
+  const g = Math.min(1.25, t.growth);
+  const k = g < 1 ? 1 - Math.pow(1 - g, 1.6) : g;
+  return def.height * (0.07 + 0.93 * k) * (0.88 + (((t.id * 37) % 100) / 100) * 0.24);
+}
 const quad = () => {
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, -0.5, 1, 0, 0.5, 1, 0], 3));
@@ -538,9 +546,7 @@ export class Forest {
     const add = (t: TreeSave) => {
       const sp = this.species.get(t.mood);
       if (!sp || sp.count >= CAP) return;
-      const g = Math.min(1.25, t.growth);
-      const k = g < 1 ? 1 - Math.pow(1 - g, 1.6) : g;
-      const h = sp.def.height * (0.07 + 0.93 * k) * (0.88 + ((t.id * 37) % 100) / 100 * 0.24);
+      const h = treeHeight(t);
       sp.posH.setXYZW(sp.count, t.x, heightAt(t.x, t.z) - 0.02 * h, t.z, h);
       sp.rot.setXYZ(sp.count, t.rot, ((t.id * 0.6180339) % 1 + 1) % 1, 1);
       sp.trees[sp.count] = t;
