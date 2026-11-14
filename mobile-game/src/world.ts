@@ -400,6 +400,19 @@ export class World {
     if (!stops.length) return;
     this.tour = { stops, i: 0, dwell: 0, arrived: false, stuck: 0, detour: 0, from: new THREE.Vector2(this.pos.x, this.pos.z), arrive, done };
   }
+  /** Walking right now (for the HUD to step aside). */
+  get moving() {
+    return this.vel.length() > 0.35;
+  }
+  /** Within the home clearing, where trees can be planted. */
+  get inClearing() {
+    return Math.hypot(this.pos.x, this.pos.z) < GARDEN_RADIUS + 2;
+  }
+  /** Metres from the middle of the clearing. */
+  get fromHome() {
+    return Math.hypot(this.pos.x, this.pos.z);
+  }
+
   get touring() {
     return !!this.tour;
   }
@@ -458,7 +471,8 @@ export class World {
     }
     turnTo(want, 2.2);
     this.pitch += (-0.04 - this.pitch) * Math.min(1, dt * 1.2);
-    return [0, d < stand + 3 ? 0.45 : 0.8];
+    // A long way home is taken at a jog.
+    return [0, d < stand + 3 ? 0.45 : d > 40 ? 1 : 0.8];
   }
 
   // ----------------------------------------------------------------- photo

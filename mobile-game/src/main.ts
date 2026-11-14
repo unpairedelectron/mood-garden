@@ -70,12 +70,18 @@ ui.innerHTML = `
     <h1>Mood <em>Garden</em></h1>
     <p id="loadText">Opening the sky</p>
     <div class="splash__bar"><i id="loadBar"></i></div>
-    <button id="begin" hidden>${isNew ? 'Step into the clearing' : plantedToday() ? 'Return to your grove' : 'Plant today’s feeling'}</button>
+    <button id="begin" hidden>${isNew ? 'Step into the clearing' : 'Return to your grove'}</button>
   </div>`;
 
 let toastTimer = 0;
 const queue: string[] = [];
-function toast(text: string) {
+/** Messages wait while you are walking and arrive when you stop. */
+const held: string[] = [];
+function toast(text: string, urgent = false) {
+  if (!urgent && ui.classList.contains('is-roaming')) {
+    if (!held.includes(text)) held.push(text);
+    return;
+  }
   const el = $('#toast');
   if (el.classList.contains('is-on')) {
     queue.push(text);
@@ -226,6 +232,7 @@ function menuSheet() {
       <button class="cta cta--soft" id="yearBtn">Year in feelings</button>
       <button class="cta cta--soft" id="walkBtn">Memory walk</button>
     </div>
+    ${world.fromHome > 80 ? '<button class="ghost ghost--home" id="homeBtn">Walk me home</button>' : ''}
     <h3>Who lives here</h3>
     <ul class="goals">${life.filter((c) => !c.hidden).map((c) => `<li class="${c.here ? 'is-done' : ''}"><i></i><div><strong>${c.name}</strong><span>${c.here ? 'Living in your grove' : c.needs}</span></div></li>`).join('')}</ul>
     <p class="sheet__tip">Nothing here is placed by hand. Ferns, flowers and creatures arrive on their own as your trees grow.</p>
@@ -249,6 +256,10 @@ function menuSheet() {
     <p class="credit">Trees, plants, rocks, bark, ground and skies are CC0 scans from Poly Haven.</p>`);
   sheet.querySelector('#yearBtn')!.addEventListener('click', () => yearSheet(new Date().getFullYear()));
   sheet.querySelector('#walkBtn')!.addEventListener('click', walkSheet);
+  sheet.querySelector('#homeBtn')?.addEventListener('click', () => {
+    closeSheet();
+    walkHome();
+  });
   on('[data-go]', (b) => {
     const t = save.trees.find((x) => x.id === Number(b.dataset.go));
     closeSheet();
@@ -368,6 +379,25 @@ function walkSheet() {
 }
 
 const memory = $('#memory');
+/** Lost in the woods: the grove walks you back to the clearing. */
+function walkHome() {
+  const home: TreeSave = { id: 0, mood: 'calm', note: '', planted: Date.now(), x: 0, z: 6, rot: 0, growth: 0 };
+  ui.classList.add('is-touring');
+  memory.innerHTML = `<p class="memory__lead">Heading home through the woods…</p><div class="row"><button class="ghost" data-end>Stop here</button></div>`;
+  memory.classList.add('is-on');
+  memory.querySelector('[data-end]')!.addEventListener('click', () => world.endTour(true));
+  world.startTour(
+    [home],
+    () => world.endTour(false),
+    (interrupted) => {
+      ui.classList.remove('is-touring');
+      memory.classList.remove('is-on');
+      if (!interrupted) toast('Home in the clearing.', true);
+      refresh();
+    },
+  );
+}
+
 function tour(stops: TreeSave[]) {
   ui.classList.add('is-touring');
   $('#caption').classList.remove('is-on');
@@ -513,7 +543,7 @@ $('#photoClose').addEventListener('click', () => photoMode(false));
 // -------------------------------------------------------------------- boot
 const clock = new Clock();
 const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, clock, { toast, change: refresh, caption, met });
-if (import.meta.env.DEV) Object.assign(window as unknown as Record<string, unknown>, { __world: world, __ui: { tour, yearSheet, walkSheet, plantSheet, menuSheet, photoMode, offerAnniversary } });
+if (import.meta.env.DEV) Object.assign(window as unknown as Record<string, unknown>, { __world: world, __ui: { tour, walkHome, yearSheet, walkSheet, plantSheet, menuSheet, photoMode, offerAnniversary } });
 
 const native = initNative({
   pause: () => {
@@ -523,6 +553,29 @@ const native = initNative({
   },
   resume: () => audio.suspend(false),
 });
+
+// The HUD steps aside while you walk and returns when you stop.
+{
+  let movingFor = 0, stillFor = 0, last = performance.now();
+  window.setInterval(() => {
+    const now = performance.now();
+    const dt = (now - last) / 1000;
+    last = now;
+    if (!world.active) return;
+    const moving = world.moving && !world.touring;
+    movingFor = moving ? movingFor + dt : 0;
+    stillFor = moving ? 0 : stillFor + dt;
+    const roaming = ui.classList.contains('is-roaming');
+    if (!roaming && movingFor > 1.5 && !sheet.classList.contains('is-on')) ui.classList.add('is-roaming');
+    if (roaming && stillFor > 2.5) {
+      ui.classList.remove('is-roaming');
+      // Anything that happened on the way, now you have stopped.
+      held.splice(0).forEach((t) => toast(t));
+    }
+    // Planting happens in the home clearing; elsewhere the button is not needed.
+    $('#plantBtn').classList.toggle('is-away', !world.inClearing);
+  }, 250);
+}
 
 const skyPill = $('#skyPill');
 const updateSky = () => (skyPill.textContent = clock.describe());
@@ -535,7 +588,7 @@ world
     $('#loadText').textContent = label;
   })
   .then(() => {
-    $('#loadText').textContent = plantedToday() || isNew ? 'Wander. Plant what you feel. Let it grow.' : 'A new day in the grove. How are you?';
+    $('#loadText').textContent = isNew ? 'Wander. Plant what you feel. Let it grow.' : 'The woods are as you left them.';
     ui.querySelector('.splash__bar')!.classList.add('is-done');
     $('#splash').classList.add('is-ready');
     $('#begin').hidden = false;
@@ -558,8 +611,6 @@ $('#begin').addEventListener('click', () => {
   if (matured > 0) window.setTimeout(() => toast(matured === 1 ? 'A tree reached full size while you were away.' : `${matured} trees reached full size while you were away.`), 1200);
   pendingArrivals.forEach((id) => toast(ARRIVED[id] ?? 'Something new lives in your grove.'));
   window.setTimeout(offerAnniversary, 2500);
-  // A new day: the ritual waits until you have had a moment to look around.
-  if (!isNew && !plantedToday()) window.setTimeout(() => !world.touring && !sheet.classList.contains('is-on') && toast('When you are ready, find a spot and tap Plant.'), 6000);
 });
 $('#menuBtn').addEventListener('click', () => {
   audio.ui('open');

@@ -23,8 +23,12 @@ and runs as a web app.
    **Year in feelings** shows every day you planted as a coloured square, a tally, a few words about your year
    and a map of the grove where any tree can be tapped and visited. **Photo mode** hides the HUD and gives you
    film looks and a time-of-day slider.
-6. **A shaped world.** A stream runs down into a pond that reflects the sky; a hill to the south-east gives a
-   view over the whole grove.
+6. **A shaped world, and a wild one beyond it.** A stream runs down into a pond that reflects the sky; a hill
+   to the south-east gives a view over the grove. Beyond the clearing, about 1.5 km of wild forest — deep woods,
+   glades, valleys and ridges — runs out to mountains too steep to climb. There is no map; if you lose your
+   way, **Menu → Walk me home** brings you back to the clearing.
+7. **The screen gets out of the way.** While you walk, the HUD fades and messages wait until you stop. The
+   Plant button only appears in the home clearing, where trees are planted.
 
 ## How it looks and sounds the way it does
 

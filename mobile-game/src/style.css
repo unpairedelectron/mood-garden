@@ -496,3 +496,9 @@ button { cursor: pointer; }
 .flash.is-on { animation: flash 0.5s ease-out; }
 @keyframes flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
 .shot { display: block; width: 100%; border-radius: 14px; margin: 8px 0 12px; border: 1px solid var(--line); }
+
+/* Roaming: the HUD steps aside while you walk. */
+#ui.is-roaming .top, #ui.is-roaming .plant, #ui.is-roaming .coach, #ui.is-roaming .toast { opacity: 0 !important; pointer-events: none; transition: opacity 1.2s ease; }
+#ui.is-roaming .stick { opacity: 0.32; transition: opacity 1.2s ease; }
+.plant.is-away { opacity: 0 !important; pointer-events: none; transform: translateY(12px); }
+.ghost--home { margin: 6px 0 4px; }
