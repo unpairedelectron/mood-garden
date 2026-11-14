@@ -12,6 +12,10 @@ export interface TreeSave {
   rot: number;
   /** 0 = just planted, 1 = full grown. */
   growth: number;
+  /** Wild trees only: size relative to a typical tree (old giants are 2×+). */
+  size?: number;
+  /** Wild trees only: cached ground height. */
+  y?: number;
 }
 export interface Save {
   v: 2;

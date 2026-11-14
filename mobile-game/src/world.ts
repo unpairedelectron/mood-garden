@@ -13,7 +13,8 @@ import { Fauna } from './fauna';
 import { Wildlife } from './life';
 import { MOOD_BY_ID, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
-import { HILL, WORLD, heightAt, heightTexture, pondShape, streamNearest, terrainGeometry, waterAt, waterDepth } from './terrain';
+import { HILL, LAND, LAND_LIMIT, LocalHeight, WORLD, forestTexture, heightAt, heightTexture, pondShape, streamNearest, waterAt, waterDepth } from './terrain';
+import { Land } from './land';
 import { Paths } from './paths';
 import { Water } from './water';
 
@@ -33,7 +34,12 @@ export class World {
   readonly life: Wildlife;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(62, 1, 0.08, 400);
+  // Far enough for the land beyond the fog; the sky dome travels with the camera.
+  private camera = new THREE.PerspectiveCamera(62, 1, 0.08, 900);
+  private land!: Land;
+  private landAt = new THREE.Vector2(Infinity, Infinity);
+  private localHeight = new LocalHeight();
+  private forestTex = forestTexture();
   private canvas: HTMLCanvasElement;
   private save: Save;
   private audio: AudioEngine;
@@ -122,6 +128,7 @@ export class World {
     this.renderer.info.autoReset = false;
     this.quality = detectQuality(this.renderer);
     this.post = new Post(this.quality);
+    LIGHT.uA2C.value = this.quality === 'low' ? 0 : 1;
     if (this.quality === 'low') this.resScale = 0.8;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -181,11 +188,13 @@ export class World {
       s.uniforms.uWorldMask = { value: this.paths.texture };
       s.uniforms.uDirt = { value: dd };
       s.uniforms.uPebble = { value: pd };
+      s.uniforms.uForest = { value: this.forestTex };
       s.vertexShader = s.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;')
-        .replace('#include <begin_vertex>', `#include <begin_vertex>\nvWuv = position.xz / ${WORLD.toFixed(1)} + .5;`);
+        .replace('#include <common>', '#include <common>\nvarying vec2 vLuv;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\nvWuv = position.xz / ${WORLD.toFixed(1)} + .5;\nvLuv = position.xz / ${LAND.toFixed(1)} + .5;`);
       s.fragmentShader = s.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;\nuniform sampler2D uLitter, uMask, uWorldMask, uDirt, uPebble;\nuniform vec4 uSeason;\nuniform float uSnow, uWet;')
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv, vLuv;\nuniform sampler2D uLitter, uMask, uWorldMask, uDirt, uPebble, uForest;\nuniform vec4 uSeason;\nuniform float uSnow, uWet;')
         .replace(
           '#include <map_fragment>',
           `// Two scales of each photo-texture hide the repeat; leaf litter takes over under trees.
@@ -198,6 +207,9 @@ export class World {
            vec4 litterC = mix(l1, l2, .4);
            float m = texture2D(uMask, vWuv).r;
            m = smoothstep(.2, .7, m + (g1.g - .25) * .9 * m);
+           // In the wild woods the floor is leaf litter, and the canopy keeps it in shade.
+           float wood = texture2D(uForest, vLuv).r;
+           m = max(m, smoothstep(.25, .7, wood + (g1.g - .25) * .5));
            // Autumn spreads leaf litter beyond the trees; seasons tint the meadow.
            float fall = uSeason.z * .45 + uSeason.w * .25;
            m = max(m, fall * smoothstep(.35, .75, macro + g1.r * .4));
@@ -217,7 +229,8 @@ export class World {
            // Rain darkens the ground; snow lies in drifts, thinner under trees.
            diffuseColor.rgb *= 1. - uWet * .32;
            float drift = smoothstep(.25, .6, uSnow * (1.15 - m * .5) + (macro - .45) * .6);
-           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.86, .9, .96), drift);`,
+           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.86, .9, .96), drift);
+           diffuseColor.rgb *= 1. - smoothstep(.3, .95, wood) * .38;`,
         )
         .replace(
           '#include <roughnessmap_fragment>',
@@ -225,12 +238,12 @@ export class World {
            roughnessFactor = mix(roughnessFactor, .62, max(uWet * .6, smoothstep(.0, .3, texture2D(uWorldMask, vWuv).g) * .5));`,
         );
     };
-    const terrain = new THREE.Mesh(terrainGeometry(), ground);
-    terrain.receiveShadow = true;
-    this.scene.add(terrain);
+    this.land = new Land(ground);
+    this.scene.add(this.land.group);
+    this.localHeight.follow(this.pos.x, this.pos.z);
 
     const hTex = heightTexture();
-    await this.forest.load(hTex, aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
+    await this.forest.load(this.localHeight, this.forestTex, aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
     this.forest.setWorldMask(this.paths.texture);
     this.forest.setGrassDensity(this.quality === 'low' ? 0.4 : this.quality === 'medium' ? 0.7 : 1);
     this.scene.add(new Water(this.sky, hTex).group);
@@ -244,6 +257,14 @@ export class World {
     const shadow = this.quality === 'low' ? 1024 : 2048;
     this.sun.shadow.mapSize.set(shadow, shadow);
     this.nearTrees.range = this.quality === 'low' ? 0.65 : this.quality === 'medium' ? 0.85 : 1;
+    this.nearTrees.cap = this.quality === 'low' ? 10 : this.quality === 'medium' ? 16 : 24;
+    // How far the land and its woods are drawn; the fog hides what lies beyond.
+    this.land.radius = this.quality === 'low' ? 340 : this.quality === 'medium' ? 420 : 500;
+    this.forest.wildRadius = this.quality === 'low' ? 210 : this.quality === 'medium' ? 270 : 330;
+    progress(0.92, 'Laying out the land');
+    this.land.plan(this.pos.x, this.pos.z);
+    this.landAt.set(this.pos.x, this.pos.z);
+    this.land.build(Infinity);
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.05;
     const sc = this.sun.shadow.camera;
@@ -333,7 +354,7 @@ export class World {
       this.store();
       return true;
     }
-    this.ev.toast('No room right here. Walk to a clearer spot and try again.');
+    this.ev.toast(Math.hypot(this.pos.x, this.pos.z) > GARDEN_RADIUS - 2 ? 'Your trees grow in the home clearing. Walk back toward it to plant.' : 'No room right here. Walk to a clearer spot and try again.');
     return false;
   }
 
@@ -524,13 +545,24 @@ export class World {
     this.vel.y += (tz - this.vel.y) * k;
     let nx = this.pos.x + this.vel.x * dt;
     let nz = this.pos.z + this.vel.y * dt;
-    for (const t of this.save.trees) {
-      const r = 0.25 + 0.3 * Math.min(1, t.growth);
+    const bump = (t: TreeSave, r: number) => {
       const dx = nx - t.x, dz = nz - t.z;
       const d = Math.hypot(dx, dz);
       if (d < r && d > 1e-4) {
         nx = t.x + (dx / d) * r;
         nz = t.z + (dz / d) * r;
+      }
+    };
+    for (const t of this.save.trees) bump(t, 0.25 + 0.3 * Math.min(1, t.growth));
+    // Wild trunks too: you weave between them rather than through them.
+    for (const t of this.forest.nearWild) bump(t, (t.mood === 'hope' ? 0.3 : t.mood === 'sorrow' ? 0.8 : 0.45) * Math.min(1.8, t.size ?? 1));
+    // The land rises into mountains at its edge: slopes too steep to climb stop you there.
+    const step = Math.hypot(nx - this.pos.x, nz - this.pos.z);
+    if (step > 1e-4) {
+      const rise = (heightAt(nx, nz) - heightAt(this.pos.x, this.pos.z)) / step;
+      if (rise > 0.85) {
+        nx = this.pos.x;
+        nz = this.pos.z;
       }
     }
     // Wade the stream and the pond's shallows; deeper water turns you back.
@@ -542,9 +574,9 @@ export class World {
         nz = this.pos.z;
       }
     }
-    // The mist thickens at the edge of the land and turns you gently back.
+    // A last guard behind the mountains, which should already have turned you.
     const R = Math.hypot(nx, nz);
-    const limit = GARDEN_RADIUS + 14;
+    const limit = LAND_LIMIT;
     if (R > limit) {
       nx *= limit / R;
       nz *= limit / R;
@@ -680,6 +712,14 @@ export class World {
       }
     }
     this.place(dt);
+    this.sky.mesh.position.copy(this.camera.position);
+    // Ground streams in around you; grass follows on its own little height map.
+    if (this.landAt.distanceTo(this.v2.set(this.pos.x, this.pos.z)) > 24) {
+      this.landAt.set(this.pos.x, this.pos.z);
+      this.land.plan(this.pos.x, this.pos.z);
+    }
+    this.land.build(2);
+    this.localHeight.follow(this.pos.x, this.pos.z);
 
     // Shadows follow the walker in texel-sized steps so they never swim.
     const texel = 60 / this.sun.shadow.mapSize.x;
@@ -717,6 +757,10 @@ export class World {
       this.hear.stream = Math.max(0, 1 - Math.max(0, sn.d - 1.5) / 22);
       this.hear.pond = Math.min(1, Math.max(0, pondShape(this.pos.x, this.pos.z) + 0.9));
       let cover = 0;
+      for (const t of this.forest.nearWild) {
+        const d = Math.hypot(t.x - this.pos.x, t.z - this.pos.z);
+        if (d < 14) cover += (1 - d / 14) * 0.5;
+      }
       for (const t of this.save.trees) {
         const reach = 2 + MOOD_BY_ID[t.mood].height * 0.45 * Math.min(1, t.growth);
         const d = Math.hypot(t.x - this.pos.x, t.z - this.pos.z);

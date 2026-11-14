@@ -319,7 +319,7 @@ void main() {
 const CARD_FRAG = /* glsl */ `
 uniform sampler2D uAlbedo;
 uniform vec3 uSunDir, uSunColor, uSky, uGround, uFogColor, uAutumnCol, uBloomCol;
-uniform float uFogDensity, uCover, uAutumn, uBloom, uSnow;
+uniform float uFogDensity, uCover, uAutumn, uBloom, uSnow, uA2C;
 varying vec2 vUv, vCard;
 varying vec3 vN, vWorld, vCentre;
 varying float vFade, vSeed, vH;
@@ -334,7 +334,7 @@ float bayer(vec2 p) {
   return (mod(q.x * 2. + q.y * 3. + q.x * q.y, 7.) + hsh(q) * .99) / 8.;
 }
 void main() {
-  if (vFade > .001 && vFade > bayer(gl_FragCoord.xy)) discard;
+  if (uA2C < .5 && vFade > .001 && vFade > bayer(gl_FragCoord.xy)) discard;
   // Ragged round clusters, so no card shows a straight edge.
   vec2 cq = vCard - .5;
   float ang = atan(cq.y, cq.x);
@@ -362,7 +362,7 @@ void main() {
   vec3 col = al.rgb * (amb + uSunColor * diff * occ + uSunColor * back * vec3(.6, .8, .3) * 1.4);
   float d = distance(cameraPosition, vWorld);
   col = mix(col, uFogColor, 1. - exp(-uFogDensity * uFogDensity * d * d));
-  gl_FragColor = vec4(col, 1.);
+  gl_FragColor = vec4(col, uA2C > .5 ? 1. - vFade : 1.);
   #include <colorspace_fragment>
 }`;
 
@@ -449,7 +449,7 @@ interface Near {
 }
 
 /** How many trees at once may be drawn in full. */
-const NEAR_CAP = 14;
+const NEAR_CAP = 24;
 
 export interface ImpostorSpecies {
   def: MoodDef;
@@ -473,6 +473,8 @@ export class NearTrees {
   private order: { sp: ImpostorSpecies; i: number; d: number }[] = [];
   /** Distance at which full trees begin to replace impostors, scaled by tree height. */
   range = 1;
+  /** How many trees may be drawn in full at once (up to NEAR_CAP); set from the quality tier. */
+  cap = NEAR_CAP;
 
   async load(species: ImpostorSpecies[], maxAniso: number) {
     const tl = new THREE.TextureLoader();
@@ -486,7 +488,7 @@ export class NearTrees {
             t.anisotropy = Math.min(4, maxAniso);
           }
           d.colorSpace = THREE.SRGBColorSpace;
-          const m = new THREE.MeshStandardMaterial({ map: d, normalMap: n, roughness: 0.92, metalness: 0 });
+          const m = new THREE.MeshStandardMaterial({ map: d, normalMap: n, roughness: 0.92, metalness: 0, alphaToCoverage: true });
           patchWood(m);
           return m;
         });
@@ -528,7 +530,7 @@ export class NearTrees {
             uAutumnCol: sp.uniforms.uAutumnCol,
             uBloomCol: sp.uniforms.uBloomCol,
           };
-          const lm = new THREE.ShaderMaterial({ vertexShader: CARD_VERT, fragmentShader: CARD_FRAG, uniforms: u, side: THREE.DoubleSide });
+          const lm = new THREE.ShaderMaterial({ vertexShader: CARD_VERT, fragmentShader: CARD_FRAG, uniforms: u, side: THREE.DoubleSide, alphaToCoverage: true });
           leaves = new THREE.InstancedMesh(cg, lm, NEAR_CAP);
           leaves.customDepthMaterial = new THREE.ShaderMaterial({ vertexShader: CARD_VERT, fragmentShader: CARD_DEPTH_FRAG, uniforms: u, side: THREE.DoubleSide });
           leaves.count = 0;
@@ -584,7 +586,7 @@ export class NearTrees {
     for (let k = 0; k < this.order.length; k++) {
       const { sp, i, d } = this.order[k];
       // Full detail inside 70% of the range, a dithered blend to the edge.
-      const fade = k < NEAR_CAP ? THREE.MathUtils.smoothstep(d, 0.7, 1) : 1;
+      const fade = k < this.cap ? THREE.MathUtils.smoothstep(d, 0.7, 1) : 1;
       if (sp.rot.getZ(i) !== fade) {
         sp.rot.setZ(i, fade);
         sp.rot.needsUpdate = true;
@@ -620,6 +622,7 @@ function patchWood(m: THREE.MeshStandardMaterial) {
   m.onBeforeCompile = (s) => {
     s.uniforms.uWet = LIGHT.uWet;
     s.uniforms.uSnow = LIGHT.uSnow;
+    s.uniforms.uA2C = LIGHT.uA2C;
     s.vertexShader = s.vertexShader
       .replace('#include <common>', '#include <common>\nattribute float aFade;\nvarying float vFade;\nvarying vec3 vWN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFade = aFade;\nvWN = normalize(mat3(modelMatrix * instanceMatrix) * normal);');
@@ -627,17 +630,18 @@ function patchWood(m: THREE.MeshStandardMaterial) {
       .replace(
         '#include <common>',
         `#include <common>
-         uniform float uWet, uSnow;
+         uniform float uWet, uSnow, uA2C;
          varying float vFade;
          varying vec3 vWN;
          float hshW(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 45758.5453); }
          float bayerW(vec2 p) { vec2 q = mod(floor(p), 4.); return (mod(q.x * 2. + q.y * 3. + q.x * q.y, 7.) + hshW(q) * .99) / 8.; }`,
       )
-      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (vFade > .001 && vFade > bayerW(gl_FragCoord.xy)) discard;')
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (uA2C < .5 && vFade > .001 && vFade > bayerW(gl_FragCoord.xy)) discard;')
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
          diffuseColor.rgb *= 1. - uWet * .4;
+         diffuseColor.a = uA2C > .5 ? 1. - vFade : 1.;
          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.9, .93, .97), uSnow * smoothstep(.55, .9, vWN.y));`,
       );
   };

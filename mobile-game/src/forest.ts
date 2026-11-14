@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { MOODS, MOOD_BY_ID, type MoodDef, type MoodId } from './moods';
 import type { TreeSave } from './state';
-import { HILL, WORLD, heightAt, waterAt } from './terrain';
+import { HILL, LAND, LAND_LIMIT, LocalHeight, WORLD, forestDensity, heightAt, waterAt } from './terrain';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
 
@@ -24,6 +24,8 @@ export const LIGHT = {
   uSnow: { value: 0 },
   /** Rain-wet surfaces, 0..1. */
   uWet: { value: 0 },
+  /** 1 when the render target is multisampled: LOD fades use alpha-to-coverage instead of a dither. */
+  uA2C: { value: 0 },
   /** Season weights: spring, summer, autumn, winter. */
   uSeason: { value: new THREE.Vector4(0, 1, 0, 0) },
 };
@@ -75,7 +77,7 @@ void main() {
 const IMPOSTOR_FRAG = /* glsl */ `
 uniform sampler2D uAlbedo, uNormal;
 uniform vec3 uSunDir, uSunColor, uSky, uGround, uFogColor;
-uniform float uFogDensity, uTime, uWind, uCover, uAutumn, uBloom, uSnow, uWet, uCanopyBase;
+uniform float uFogDensity, uTime, uWind, uCover, uAutumn, uBloom, uSnow, uWet, uCanopyBase, uA2C;
 uniform vec3 uAutumnCol, uBloomCol;
 varying vec2 vUv0, vUv1;
 varying float vBlend, vSeed, vFade, vH;
@@ -92,7 +94,7 @@ float bayer(vec2 p) {
   return (mod(q.x * 2. + q.y * 3. + q.x * q.y, 7.) + hsh(q) * .99) / 8.;
 }
 void main() {
-  if (vFade < .999 && vFade <= bayer(gl_FragCoord.xy)) discard;
+  if (uA2C < .5 && vFade < .999 && vFade <= bayer(gl_FragCoord.xy)) discard;
   // A slow shimmer in the lookup makes leaves appear to stir.
   vec2 stir = vec2(sin(uTime * 1.7 + vWorld.y * 3.1 + vWorld.x), cos(uTime * 1.3 + vWorld.y * 2.3)) * .0007 * uWind;
   vec4 a0 = texture2D(uAlbedo, vUv0 + stir);
@@ -127,7 +129,8 @@ void main() {
   vec3 col = al.rgb * (amb + uSunColor * diff * mix(.28, 1., occ) + uSunColor * back * vec3(.55, .7, .25));
   float d = distance(cameraPosition, vWorld);
   col = mix(col, uFogColor, 1. - exp(-uFogDensity * uFogDensity * d * d));
-  gl_FragColor = vec4(col, alpha);
+  // With MSAA the fade resolves as smooth sub-pixel coverage rather than a dot pattern.
+  gl_FragColor = vec4(col, alpha * (uA2C > .5 ? vFade : 1.));
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -170,14 +173,15 @@ interface Species {
   trees: TreeSave[];
 }
 
-const CAP = 480;
+/** Impostors per species: enough for the woods within view of the walker. */
+const CAP = 4000;
 
 /** Height of a tree in metres for its growth, with a little per-tree variety. */
 export function treeHeight(t: TreeSave): number {
   const def = MOOD_BY_ID[t.mood];
   const g = Math.min(1.25, t.growth);
   const k = g < 1 ? 1 - Math.pow(1 - g, 1.6) : g;
-  return def.height * (0.07 + 0.93 * k) * (0.88 + (((t.id * 37) % 100) / 100) * 0.24);
+  return def.height * (0.07 + 0.93 * k) * (0.88 + (((Math.abs(t.id) * 37) % 100) / 100) * 0.24) * (t.size ?? 1);
 }
 const quad = () => {
   const g = new THREE.InstancedBufferGeometry();
@@ -215,6 +219,21 @@ interface ScatterKind {
   size: number;
 }
 
+const bucket = (x: number, z: number) => Math.floor((z + LAND / 2) / 64) * 1000 + Math.floor((x + LAND / 2) / 64);
+const h2 = (x: number, y: number) => {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+/** Smooth value noise for where each kind of tree grows. */
+function vnoise2(x: number, y: number) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  let fx = x - xi, fy = y - yi;
+  fx = fx * fx * (3 - 2 * fx);
+  fy = fy * fy * (3 - 2 * fy);
+  const a = h2(xi, yi), b = h2(xi + 1, yi), c = h2(xi, yi + 1), d = h2(xi + 1, yi + 1);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+
 const rnd = (seed: number) => {
   let a = seed >>> 0;
   return () => {
@@ -241,16 +260,26 @@ export class Forest {
     uWet: LIGHT.uWet,
     /** Worn paths and water: r = path wear, g = water. Set by the world. */
     uWorldMask: { value: null as THREE.Texture | null },
+    /** How wooded the land is (r), across the whole land. */
+    uForest: { value: null as THREE.Texture | null },
+    uHeightOrigin: { value: new THREE.Vector2() },
   };
-  private wild: TreeSave[] = [];
+  /** The wild woods, bucketed by 64 m square for quick lookup around the walker. */
+  private wildBuckets = new Map<number, TreeSave[]>();
+  /** Wild trees with trunks close to the walker, for bumping into. */
+  readonly nearWild: TreeSave[] = [];
+  /** How far wild trees are drawn (metres); set from the quality tier. */
+  wildRadius = 320;
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
   private v = new THREE.Vector3();
   private s = new THREE.Vector3();
 
-  async load(heightTex: THREE.Texture, maxAniso: number, progress: (p: number) => void) {
-    this.grassU.uHeight.value = heightTex;
+  async load(local: LocalHeight, forestTex: THREE.Texture, maxAniso: number, progress: (p: number) => void) {
+    this.grassU.uHeight.value = local.texture;
+    this.grassU.uHeightOrigin.value = local.origin;
+    this.grassU.uForest.value = forestTex;
     const tl = new THREE.TextureLoader();
     let done = 0;
     const total = MOODS.length + 11;
@@ -304,16 +333,16 @@ export class Forest {
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
     const want: [string, number, number, boolean, number][] = [
       // asset, variants to keep, capacity, casts shadow, typical size in metres
-      ['fern_02', 2, 520, false, 0.75],
-      ['shrub_03', 2, 160, true, 0.95],
-      ['shrub_02', 1, 60, true, 1.2],
-      ['shrub_04', 1, 60, true, 1.0],
-      ['flower_gazania', 2, 520, false, 0.3],
-      ['dandelion_01', 2, 420, false, 0.28],
-      ['periwinkle_plant', 2, 400, false, 0.45],
-      ['rock_moss_set_01', 3, 50, true, 1.1],
-      ['rock_07', 1, 24, true, 1.6],
-      ['tree_stump_01', 1, 10, true, 0.8],
+      ['fern_02', 2, 2200, false, 0.75],
+      ['shrub_03', 2, 520, true, 0.95],
+      ['shrub_02', 1, 300, true, 1.2],
+      ['shrub_04', 1, 300, true, 1.0],
+      ['flower_gazania', 2, 700, false, 0.3],
+      ['dandelion_01', 2, 700, false, 0.28],
+      ['periwinkle_plant', 2, 700, false, 0.45],
+      ['rock_moss_set_01', 3, 120, true, 1.1],
+      ['rock_07', 1, 80, true, 1.6],
+      ['tree_stump_01', 1, 40, true, 0.8],
     ];
     await Promise.all(
       want.map(async ([asset, variants, cap, cast, metres]) => {
@@ -412,7 +441,7 @@ export class Forest {
     mat.onBeforeCompile = (s) => {
       Object.assign(s.uniforms, u, { uGrassH: { value: height } });
       s.vertexShader = s.vertexShader
-        .replace('#include <common>', `#include <common>\nuniform vec3 uCenter; uniform float uTile, uTime, uWind, uGrassH; uniform sampler2D uHeight, uWorldMask;\nvec3 gShift; float gFade; varying float vBend;`)
+        .replace('#include <common>', `#include <common>\nuniform vec3 uCenter; uniform vec2 uHeightOrigin; uniform float uTile, uTime, uWind, uGrassH; uniform sampler2D uHeight, uWorldMask, uForest;\nvec3 gShift; float gFade; varying float vBend;`)
         .replace(
           '#include <begin_vertex>',
           `vec3 transformed = position;
@@ -420,12 +449,15 @@ export class Forest {
            float HALF = uTile * .5;
            vec2 rel = mod(ip.xz - uCenter.xz + HALF, uTile) - HALF;
            vec2 wxz = uCenter.xz + rel;
-           float gy = texture2D(uHeight, wxz / ${WORLD.toFixed(1)} + .5).r;
+           float gy = texture2D(uHeight, (wxz - uHeightOrigin) / ${LocalHeight.SIZE.toFixed(1)} + .5).r;
            gFade = 1. - smoothstep(HALF * .7, HALF * .98, length(rel));
            // Grass gives way on worn paths and in water.
            vec4 wm = texture2D(uWorldMask, wxz / ${WORLD.toFixed(1)} + .5);
            gFade *= 1. - smoothstep(.25, .7, wm.r) * .92;
            gFade *= 1. - smoothstep(.1, .4, wm.g);
+           // Deep woods: little grass grows in the shade, ferns and leaf litter take over.
+           float wood = texture2D(uForest, wxz / ${LAND.toFixed(1)} + .5).r;
+           gFade *= 1. - smoothstep(.3, .85, wood) * .88;
            transformed *= gFade;
            float bend = pow(clamp(position.y / uGrassH, 0., 1.), 2.);
            vBend = bend;
@@ -531,14 +563,73 @@ export class Forest {
     this.put('rock_07', 0, HILL.x + 0.6, HILL.z - 0.4, 2.2, 0.8, 0, 0.35);
     this.put('rock_moss_set_01', 1, HILL.x - 2.5, HILL.z + 1.8, 1.4, 2.1, 0.1, 0.12);
     this.sceneryMark();
-    const ids: MoodId[] = ['joy', 'calm', 'hope', 'sorrow', 'joy', 'calm', 'love'];
-    for (let i = 0; i < 120; i++) {
-      const a = r() * 6.28;
-      const d = 66 + r() * 52;
-      if (waterAt(Math.cos(a) * d, Math.sin(a) * d) !== null || waterAt(Math.cos(a) * d + 2, Math.sin(a) * d) !== null) continue;
-      this.wild.push({ id: -i - 1, mood: ids[i % ids.length], note: '', planted: 0, x: Math.cos(a) * d, z: Math.sin(a) * d, rot: r() * 6.28, growth: 0.75 + r() * 0.5 });
+    this.growWilds();
+  }
+
+  /**
+   * The wild forest: every tree in the land, placed once from the woodland map.
+   * Broadleaf canopy trees, fir and thicket beneath them, quiver trees on dry
+   * open ground, and now and then an ancient giant.
+   */
+  private growWilds() {
+    const r = rnd(4242);
+    const CELL = 10;
+    const half = LAND / 2;
+    let id = -1;
+    for (let z = -half; z < half; z += CELL) {
+      for (let x = -half; x < half; x += CELL) {
+        const cx = x + CELL / 2, cz = z + CELL / 2;
+        const R = Math.hypot(cx, cz);
+        if (R < 56 || R > LAND_LIMIT + 70) continue;
+        const d = forestDensity(cx, cz);
+        // Expected trees per cell; glades keep a few scattered trees.
+        const want = d * 2.6 + (d < 0.15 && R > 90 ? 0.06 : 0);
+        let n = Math.floor(want);
+        if (r() < want - n) n++;
+        for (let k = 0; k < n; k++) {
+          const tx = x + r() * CELL, tz = z + r() * CELL;
+          if (waterAt(tx, tz) !== null || waterAt(tx + 2.5, tz) !== null || waterAt(tx - 2.5, tz) !== null || waterAt(tx, tz + 2.5) !== null || waterAt(tx, tz - 2.5) !== null) continue;
+          if (Math.hypot(tx - HILL.x, tz - HILL.z) < HILL.radius * 0.55) continue;
+          // Which kind grows here: damp hollows favour shade trees and jacaranda,
+          // dry ground broadleaf and quiver trees; fir and thicket fill the understorey.
+          const damp = vnoise2(tx * 0.008 + 7, tz * 0.008 - 3);
+          const u = r();
+          let mood: MoodId;
+          if (u < 0.22) mood = 'hope';
+          else if (u < 0.36) mood = 'sorrow';
+          else if (d < 0.35 && damp < 0.45 && r() < 0.5) mood = 'courage';
+          else if (damp > 0.55) mood = r() < 0.7 ? 'calm' : 'love';
+          else mood = r() < 0.72 ? 'joy' : r() < 0.6 ? 'calm' : 'love';
+          let size = 0.85 + r() * 0.5;
+          if ((mood === 'joy' || mood === 'calm') && d > 0.6 && r() < 0.012) size = 2 + r() * 0.7;
+          if (mood === 'hope') size = 0.9 + r() * 0.9;
+          const t: TreeSave = { id: id--, mood, note: '', planted: 0, x: tx, z: tz, rot: r() * 6.28, growth: 1, size, y: heightAt(tx, tz) };
+          const key = bucket(tx, tz);
+          let list = this.wildBuckets.get(key);
+          if (!list) this.wildBuckets.set(key, (list = []));
+          list.push(t);
+          this.wildCount++;
+        }
+      }
     }
   }
+  wildCount = 0;
+
+  /** Wild trees within `radius` of a point. */
+  private wildNear(x: number, z: number, radius: number, out: TreeSave[]) {
+    const B = 64;
+    const half = LAND / 2;
+    const i0 = Math.floor((x - radius + half) / B), i1 = Math.floor((x + radius + half) / B);
+    const j0 = Math.floor((z - radius + half) / B), j1 = Math.floor((z + radius + half) / B);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const list = this.wildBuckets.get(j * 1000 + i);
+        if (!list) continue;
+        for (const t of list) if (Math.hypot(t.x - x, t.z - z) < radius) out.push(t);
+      }
+    }
+  }
+  private wildScratch: TreeSave[] = [];
   private baseCounts = new Map<THREE.InstancedMesh, number>();
   private sceneryMark() {
     for (const k of this.kinds.values()) for (const m of k.meshes) this.baseCounts.set(m, m.count);
@@ -554,12 +645,24 @@ export class Forest {
       const sp = this.species.get(t.mood);
       if (!sp || sp.count >= CAP) return;
       const h = treeHeight(t);
-      sp.posH.setXYZW(sp.count, t.x, heightAt(t.x, t.z) - 0.02 * h, t.z, h);
+      sp.posH.setXYZW(sp.count, t.x, (t.y ?? heightAt(t.x, t.z)) - 0.02 * h, t.z, h);
       sp.rot.setXYZ(sp.count, t.rot, ((t.id * 0.6180339) % 1 + 1) % 1, 1);
       sp.trees[sp.count] = t;
       sp.count++;
     };
-    for (const t of this.wild) add(t);
+    const fx = focus?.x ?? 0, fz = focus?.z ?? 0;
+    // The wild woods within sight, nearest first so the cap drops only the farthest.
+    const wild = this.wildScratch;
+    wild.length = 0;
+    this.wildNear(fx, fz, this.wildRadius, wild);
+    wild.sort((a, b) => Math.hypot(a.x - fx, a.z - fz) - Math.hypot(b.x - fx, b.z - fz));
+    for (const t of wild) add(t);
+    this.nearWild.length = 0;
+    for (const t of wild) {
+      if (Math.hypot(t.x - fx, t.z - fz) > 40) break;
+      this.nearWild.push(t);
+    }
+    this.wildUnderstory(fx, fz);
     for (const t of trees) {
       add(t);
       if (focus && Math.hypot(t.x - focus.x, t.z - focus.z) > 55) continue;
@@ -593,6 +696,58 @@ export class Forest {
       sp.rot.needsUpdate = true;
     }
     for (const k of this.kinds.values()) for (const m of k.meshes) m.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * The floor of the wild woods around the walker: ferns and shrubs where it is
+   * wooded, rocks and stumps here and there, wild flowers in the glades.
+   */
+  private wildUnderstory(fx: number, fz: number) {
+    const C = 6;
+    const R = 38;
+    for (let gz = Math.floor((fz - R) / C); gz <= Math.floor((fz + R) / C); gz++) {
+      for (let gx = Math.floor((fx - R) / C); gx <= Math.floor((fx + R) / C); gx++) {
+        const cx = (gx + 0.5) * C, cz = (gz + 0.5) * C;
+        if (Math.hypot(cx - fx, cz - fz) > R) continue;
+        const rr = Math.hypot(cx, cz);
+        if (rr < 64 || rr > LAND_LIMIT + 20) continue;
+        const r = rnd((gx * 73856093) ^ (gz * 19349663));
+        const d = forestDensity(cx, cz);
+        const at = () => [gx * C + r() * C, gz * C + r() * C] as const;
+        const nf = Math.floor(d * 4 + r());
+        for (let i = 0; i < nf; i++) {
+          const [x, z] = at();
+          this.put('fern_02', Math.floor(r() * 4), x, z, 0.9 + r() * 0.9, r() * 6.28);
+        }
+        // Shrubs at eye level break up the long views through the woods.
+        for (let k = 0, ns = Math.floor(d * 1.3 + r() * 0.6); k < ns; k++) {
+          const [x, z] = at();
+          this.put(r() < 0.5 ? 'shrub_03' : r() < 0.5 ? 'shrub_02' : 'shrub_04', Math.floor(r() * 4), x, z, 0.8 + r() * 0.8, r() * 6.28);
+        }
+        if (r() < d * 0.5) {
+          const [x, z] = at();
+          this.put('periwinkle_plant', Math.floor(r() * 4), x, z, 0.9 + r() * 0.6, r() * 6.28);
+        }
+        if (r() < 0.07) {
+          const [x, z] = at();
+          const big = r() < 0.35;
+          this.put(big ? 'rock_07' : 'rock_moss_set_01', Math.floor(r() * 4), x, z, big ? 0.8 + r() * 1.8 : 0.7 + r() * 1.3, r() * 6.28, (r() - 0.5) * 0.3, 0.12);
+        }
+        if (r() < d * 0.025) {
+          const [x, z] = at();
+          this.put('tree_stump_01', 0, x, z, 0.8 + r() * 0.6, r() * 6.28, 0, 0.03);
+        }
+        // Glades flower in their season.
+        const fl = this.flowerSeason;
+        if (d < 0.3 && fl > 0.05) {
+          const nfl = Math.floor((0.3 - d) * 10 * fl * r());
+          for (let i = 0; i < nfl; i++) {
+            const [x, z] = at();
+            this.put(r() < 0.6 ? 'dandelion_01' : 'flower_gazania', Math.floor(r() * 4), x, z, (0.8 + r() * 0.8) * fl, r() * 6.28);
+          }
+        }
+      }
+    }
   }
 
   /** Spots where flowers grow, for butterflies and bees to visit. */
