@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { MOODS, MOOD_BY_ID, type MoodDef, type MoodId } from './moods';
 import type { TreeSave } from './state';
-import { WORLD, heightAt } from './terrain';
+import { HILL, WORLD, heightAt, waterAt } from './terrain';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
 
@@ -20,14 +20,27 @@ export const LIGHT = {
   uFogDensity: { value: 0.012 },
   uTime: { value: 0 },
   uWind: { value: 1 },
+  /** Lying snow, 0..1. */
+  uSnow: { value: 0 },
+  /** Rain-wet surfaces, 0..1. */
+  uWet: { value: 0 },
+  /** Season weights: spring, summer, autumn, winter. */
+  uSeason: { value: new THREE.Vector4(0, 1, 0, 0) },
 };
+
+/** Per-species seasonal look, recomputed when the season changes. */
+export interface SpeciesSeason {
+  cover: number;
+  autumn: number;
+  bloom: number;
+}
 
 const IMPOSTOR_VERT = /* glsl */ `
 attribute vec4 iPosH;   // xyz = base position, w = current height (m)
-attribute vec2 iRot;    // x = yaw offset, y = random seed
+attribute vec3 iRot;    // x = yaw offset, y = random seed, z = impostor opacity (fades out up close)
 uniform float uAspect, uTime, uWind;
 varying vec2 vUv0, vUv1;
-varying float vBlend;
+varying float vBlend, vSeed, vFade, vH;
 varying vec3 vRight, vToCam, vWorld;
 vec2 cell(float i, vec2 c) {
   float col = mod(i, 4.);
@@ -53,17 +66,33 @@ void main() {
   vRight = right;
   vToCam = toCam;
   vWorld = wp;
+  vSeed = iRot.y;
+  vFade = iRot.z;
+  vH = position.y;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.);
 }`;
 
 const IMPOSTOR_FRAG = /* glsl */ `
 uniform sampler2D uAlbedo, uNormal;
 uniform vec3 uSunDir, uSunColor, uSky, uGround, uFogColor;
-uniform float uFogDensity, uTime, uWind;
+uniform float uFogDensity, uTime, uWind, uCover, uAutumn, uBloom, uSnow, uWet, uCanopyBase;
+uniform vec3 uAutumnCol, uBloomCol;
 varying vec2 vUv0, vUv1;
-varying float vBlend;
+varying float vBlend, vSeed, vFade, vH;
 varying vec3 vRight, vToCam, vWorld;
+float hsh(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 45758.5453); }
+float vn(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3. - 2. * f);
+  return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y);
+}
+/** Screen-door dither so LODs can cross-fade without sorting. */
+float bayer(vec2 p) {
+  vec2 q = mod(floor(p), 4.);
+  return (mod(q.x * 2. + q.y * 3. + q.x * q.y, 7.) + hsh(q) * .99) / 8.;
+}
 void main() {
+  if (vFade < .999 && vFade <= bayer(gl_FragCoord.xy)) discard;
   // A slow shimmer in the lookup makes leaves appear to stir.
   vec2 stir = vec2(sin(uTime * 1.7 + vWorld.y * 3.1 + vWorld.x), cos(uTime * 1.3 + vWorld.y * 2.3)) * .0007 * uWind;
   vec4 a0 = texture2D(uAlbedo, vUv0 + stir);
@@ -71,11 +100,26 @@ void main() {
   float w = smoothstep(.25, .75, vBlend);
   vec4 al = mix(a0, a1, w);
   float alpha = smoothstep(.3, .62, al.a);
+  // Leaf pixels are the green ones; bark is grey-brown.
+  float leafy = smoothstep(-.002, .014, al.g - max(al.r, al.b)) * step(uCanopyBase * .6, vH);
+  // Deciduous trees thin out through autumn and stand bare in winter.
+  float ln = vn(vUv0 * vec2(260., 160.) + vSeed * 31.) * .7 + vn(vUv0 * vec2(60., 38.) + vSeed * 7.) * .3;
+  if (leafy > .5 && ln > uCover) discard;
   if (alpha < .06) discard;
   vec3 nd = mix(texture2D(uNormal, vUv0), texture2D(uNormal, vUv1), w).rgb;
   vec2 nxy = nd.rg * 2. - 1.;
   vec3 n = normalize(vRight * nxy.x + vec3(0., nxy.y, 0.) + vToCam * sqrt(max(1. - dot(nxy, nxy), .04)));
   float occ = nd.b;
+  // Seasons recolour the leaves only.
+  float lum = dot(al.rgb, vec3(.3, .55, .15));
+  float patchy = smoothstep(.25, .75, vn(vUv0 * vec2(40., 24.) + vSeed * 13.) + (vSeed - .5) * .6);
+  vec3 turned = lum * mix(uAutumnCol, uAutumnCol.grb * vec3(1.1, .7, 1.), patchy * .35);
+  al.rgb = mix(al.rgb, turned, uAutumn * leafy * (.55 + .45 * patchy));
+  float bl = uBloom * leafy * smoothstep(.45, .75, vn(vUv0 * vec2(320., 200.) + vSeed * 5.));
+  al.rgb = mix(al.rgb, lum * uBloomCol * 1.5, bl);
+  // Snow settles on upward faces; rain darkens bark.
+  al.rgb = mix(al.rgb, vec3(.9, .93, .97), uSnow * smoothstep(.15, .6, n.y) * .85);
+  al.rgb *= 1. - uWet * (1. - leafy) * .35;
   vec3 V = normalize(cameraPosition - vWorld);
   float diff = max(dot(n, uSunDir) * .62 + .38, 0.);
   vec3 amb = mix(uGround, uSky, n.y * .5 + .5) * mix(.4, 1., occ) * 1.25;
@@ -90,8 +134,25 @@ void main() {
 
 const DEPTH_FRAG = /* glsl */ `
 uniform sampler2D uAlbedo;
+uniform float uCover, uCanopyBase;
 varying vec2 vUv0;
-void main() { if (texture2D(uAlbedo, vUv0).a < .5) discard; gl_FragColor = vec4(1.); }`;
+varying float vSeed, vH, vFade;
+float hsh(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 45758.5453); }
+float vn(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3. - 2. * f);
+  return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y);
+}
+void main() {
+  // The full 3D tree takes over the shadow once it is mostly faded in.
+  if (vFade < .5) discard;
+  vec4 al = texture2D(uAlbedo, vUv0);
+  if (al.a < .5) discard;
+  float leafy = step(.006, al.g - max(al.r, al.b)) * step(uCanopyBase * .6, vH);
+  float ln = vn(vUv0 * vec2(260., 160.) + vSeed * 31.) * .7 + vn(vUv0 * vec2(60., 38.) + vSeed * 7.) * .3;
+  if (leafy > .5 && ln > uCover) discard;
+  gl_FragColor = vec4(1.);
+}`;
 
 interface Species {
   def: MoodDef;
@@ -100,9 +161,24 @@ interface Species {
   rot: THREE.InstancedBufferAttribute;
   aspect: number;
   count: number;
+  uniforms: Record<string, THREE.IUniform>;
+  albedo: THREE.Texture;
+  normal: THREE.Texture;
+  /** Real size of the baked tree (metres) and its atlas layout. */
+  info: { width: number; height: number; cols: number; rows: number };
+  /** Instance index -> tree, for the near-tree LOD. */
+  trees: TreeSave[];
 }
 
-const CAP = 160;
+const CAP = 480;
+
+/** Height of a tree in metres for its growth, with a little per-tree variety. */
+export function treeHeight(t: TreeSave): number {
+  const def = MOOD_BY_ID[t.mood];
+  const g = Math.min(1.25, t.growth);
+  const k = g < 1 ? 1 - Math.pow(1 - g, 1.6) : g;
+  return def.height * (0.07 + 0.93 * k) * (0.88 + (((t.id * 37) % 100) / 100) * 0.24);
+}
 const quad = () => {
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, -0.5, 1, 0, 0.5, 1, 0], 3));
@@ -154,7 +230,18 @@ export class Forest {
   readonly group = new THREE.Group();
   private species = new Map<MoodId, Species>();
   private kinds = new Map<string, ScatterKind>();
-  private grassU = { uCenter: { value: new THREE.Vector3() }, uTile: { value: 34 }, uHeight: { value: null as THREE.Texture | null }, uTime: LIGHT.uTime, uWind: LIGHT.uWind };
+  private grassU = {
+    uCenter: { value: new THREE.Vector3() },
+    uTile: { value: 34 },
+    uHeight: { value: null as THREE.Texture | null },
+    uTime: LIGHT.uTime,
+    uWind: LIGHT.uWind,
+    uSeason: LIGHT.uSeason,
+    uSnow: LIGHT.uSnow,
+    uWet: LIGHT.uWet,
+    /** Worn paths and water: r = path wear, g = water. Set by the world. */
+    uWorldMask: { value: null as THREE.Texture | null },
+  };
   private wild: TreeSave[] = [];
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -172,7 +259,7 @@ export class Forest {
     await Promise.all(
       MOODS.map(async (def) => {
         const [info, albedo, normal] = await Promise.all([
-          fetch(`${ASSETS}trees/${def.asset}.json`).then((r) => r.json() as Promise<{ width: number; height: number }>),
+          fetch(`${ASSETS}trees/${def.asset}.json`).then((r) => r.json() as Promise<{ width: number; height: number; cols: number; rows: number }>),
           tl.loadAsync(`${ASSETS}trees/${def.asset}_albedo.webp`),
           tl.loadAsync(`${ASSETS}trees/${def.asset}_normal.webp`),
         ]);
@@ -181,12 +268,24 @@ export class Forest {
         albedo.premultiplyAlpha = false;
         const g = quad();
         const posH = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 4), 4);
-        const rot = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 2), 2);
+        const rot = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3);
+        rot.setUsage(THREE.DynamicDrawUsage);
         posH.setUsage(THREE.DynamicDrawUsage);
         g.setAttribute('iPosH', posH);
         g.setAttribute('iRot', rot);
         g.instanceCount = 0;
-        const uniforms = { ...LIGHT, uAlbedo: { value: albedo }, uNormal: { value: normal }, uAspect: { value: info.width / info.height } };
+        const uniforms = {
+          ...LIGHT,
+          uAlbedo: { value: albedo },
+          uNormal: { value: normal },
+          uAspect: { value: info.width / info.height },
+          uCover: { value: 1.2 },
+          uAutumn: { value: 0 },
+          uBloom: { value: 0 },
+          uAutumnCol: { value: new THREE.Vector3(...def.autumn) },
+          uBloomCol: { value: new THREE.Vector3(...(def.blossom ?? [1, 1, 1])) },
+          uCanopyBase: { value: 0 },
+        };
         const mat = new THREE.ShaderMaterial({ vertexShader: IMPOSTOR_VERT, fragmentShader: IMPOSTOR_FRAG, uniforms, alphaToCoverage: true });
         // Shadow passes default to back faces; a card has none, so ask for both.
         mat.shadowSide = THREE.DoubleSide;
@@ -196,7 +295,7 @@ export class Forest {
         mesh.castShadow = true;
         mesh.frustumCulled = false;
         this.group.add(mesh);
-        this.species.set(def.id, { def, mesh, posH, rot, aspect: info.width / info.height, count: 0 });
+        this.species.set(def.id, { def, mesh, posH, rot, aspect: info.width / info.height, count: 0, uniforms, albedo, normal, info, trees: [] });
         tick();
       }),
     );
@@ -205,13 +304,13 @@ export class Forest {
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
     const want: [string, number, number, boolean, number][] = [
       // asset, variants to keep, capacity, casts shadow, typical size in metres
-      ['fern_02', 2, 260, false, 0.75],
-      ['shrub_03', 2, 90, true, 0.95],
+      ['fern_02', 2, 520, false, 0.75],
+      ['shrub_03', 2, 160, true, 0.95],
       ['shrub_02', 1, 60, true, 1.2],
       ['shrub_04', 1, 60, true, 1.0],
-      ['flower_gazania', 2, 260, false, 0.3],
-      ['dandelion_01', 2, 220, false, 0.28],
-      ['periwinkle_plant', 2, 200, false, 0.45],
+      ['flower_gazania', 2, 520, false, 0.3],
+      ['dandelion_01', 2, 420, false, 0.28],
+      ['periwinkle_plant', 2, 400, false, 0.45],
       ['rock_moss_set_01', 3, 50, true, 1.1],
       ['rock_07', 1, 24, true, 1.6],
       ['tree_stump_01', 1, 10, true, 0.8],
@@ -277,7 +376,13 @@ export class Forest {
       const mat = (src.material as THREE.MeshStandardMaterial).clone();
       // The scan's albedo is very dark once lit from above only; lift it to sit with the ground.
       mat.color.setRGB(1.35, 1.5, 1.0);
+      // The scan's normal and roughness maps turn some blades into mirrors once their
+      // geometric normals point up, so grass is shaded as matte ground instead.
+      mat.normalMap = null;
+      mat.roughnessMap = null;
+      mat.metalnessMap = null;
       mat.roughness = 1;
+      mat.metalness = 0;
       mat.transparent = false;
       mat.alphaTest = 0.4;
       mat.side = THREE.DoubleSide;
@@ -294,6 +399,7 @@ export class Forest {
       im.receiveShadow = true;
       im.frustumCulled = false;
       im.userData.variant = vi;
+      this.grass.push(im);
       this.group.add(im);
     });
     tick();
@@ -306,7 +412,7 @@ export class Forest {
     mat.onBeforeCompile = (s) => {
       Object.assign(s.uniforms, u, { uGrassH: { value: height } });
       s.vertexShader = s.vertexShader
-        .replace('#include <common>', `#include <common>\nuniform vec3 uCenter; uniform float uTile, uTime, uWind, uGrassH; uniform sampler2D uHeight;\nvec3 gShift; float gFade;`)
+        .replace('#include <common>', `#include <common>\nuniform vec3 uCenter; uniform float uTile, uTime, uWind, uGrassH; uniform sampler2D uHeight, uWorldMask;\nvec3 gShift; float gFade; varying float vBend;`)
         .replace(
           '#include <begin_vertex>',
           `vec3 transformed = position;
@@ -316,8 +422,13 @@ export class Forest {
            vec2 wxz = uCenter.xz + rel;
            float gy = texture2D(uHeight, wxz / ${WORLD.toFixed(1)} + .5).r;
            gFade = 1. - smoothstep(HALF * .7, HALF * .98, length(rel));
+           // Grass gives way on worn paths and in water.
+           vec4 wm = texture2D(uWorldMask, wxz / ${WORLD.toFixed(1)} + .5);
+           gFade *= 1. - smoothstep(.25, .7, wm.r) * .92;
+           gFade *= 1. - smoothstep(.1, .4, wm.g);
            transformed *= gFade;
            float bend = pow(clamp(position.y / uGrassH, 0., 1.), 2.);
+           vBend = bend;
            float wv = sin(uTime * 1.6 + wxz.x * .7 + wxz.y * .5) * .06 + sin(uTime * 3.1 + wxz.x * 1.9) * .025;
            transformed.x += wv * bend * uWind;
            transformed.z += wv * .6 * bend * uWind;
@@ -336,7 +447,52 @@ export class Forest {
            worldPosition.xyz += gShift;`,
         );
     };
+    const prev = mat.onBeforeCompile;
+    mat.onBeforeCompile = (s, r) => {
+      prev.call(mat, s, r);
+      s.fragmentShader = s.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec4 uSeason; uniform float uSnow, uWet; varying float vBend;')
+        .replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+           // Fresh green in spring, sun-bleached in summer, tawny in autumn, dull in winter.
+           vec3 tint = uSeason.x * vec3(.95, 1.08, .8) + uSeason.y * vec3(1.08, 1.02, .78) + uSeason.z * vec3(1.18, .9, .62) + uSeason.w * vec3(.88, .86, .8);
+           diffuseColor.rgb *= tint;
+           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.92, .95, 1.), uSnow * smoothstep(.3, 1., vBend) * .8);
+           diffuseColor.rgb *= 1. - uWet * .2;`,
+        );
+    };
     mat.customProgramCacheKey = () => 'grass';
+  }
+
+  /** 0..1 how much the understory is in flower. */
+  private flowerSeason = 1;
+
+  /** Recolour every species for the season. Cheap; call when the season moves. */
+  setSeason(s: { spring: number; summer: number; autumn: number; winter: number; leaf: number; bloom: number }) {
+    this.flowerSeason = Math.min(1, s.spring * 1.2 + s.summer + s.autumn * 0.35);
+    for (const sp of this.species.values()) {
+      const d = sp.def;
+      const u = sp.uniforms;
+      u.uCover.value = d.deciduous ? 0.08 + s.leaf * 1.1 : 1.2;
+      // Turning peaks mid-autumn and lingers on what is left in early winter.
+      u.uAutumn.value = d.deciduous ? Math.min(1, s.autumn * 1.4 + s.winter * 0.5) : s.autumn * 0.15;
+      u.uBloom.value = d.blossom ? s.bloom * (d.id === 'love' ? 0.85 : 0.35) : 0;
+    }
+  }
+
+  get speciesList() {
+    return [...this.species.values()];
+  }
+
+  private grass: THREE.InstancedMesh[] = [];
+  /** Share of grass clumps drawn (the biggest single cost on a phone). */
+  setGrassDensity(k: number) {
+    for (const im of this.grass) im.count = Math.round(im.instanceMatrix.count * k);
+  }
+
+  setWorldMask(t: THREE.Texture) {
+    this.grassU.uWorldMask.value = t;
   }
 
   setFocus(p: THREE.Vector3) {
@@ -347,6 +503,8 @@ export class Forest {
   private put(kind: string, variant: number, x: number, z: number, scale: number, yaw: number, tilt = 0, sink = 0) {
     const k = this.kinds.get(kind);
     if (!k) return;
+    // Nothing grows in open water.
+    if (waterAt(x, z) !== null) return;
     const im = k.meshes[variant % k.meshes.length];
     if (im.count >= im.instanceMatrix.count) return;
     this.q.setFromEuler(this.e.set(tilt, yaw, tilt * 0.6));
@@ -369,11 +527,15 @@ export class Forest {
       const d = 12 + r() * 50;
       this.put('tree_stump_01', 0, Math.cos(a) * d, Math.sin(a) * d, 0.9 + r() * 0.5, r() * 6.28, 0, 0.03);
     }
+    // A broad flat rock on the hilltop to sit on and look out over the grove.
+    this.put('rock_07', 0, HILL.x + 0.6, HILL.z - 0.4, 2.2, 0.8, 0, 0.35);
+    this.put('rock_moss_set_01', 1, HILL.x - 2.5, HILL.z + 1.8, 1.4, 2.1, 0.1, 0.12);
     this.sceneryMark();
     const ids: MoodId[] = ['joy', 'calm', 'hope', 'sorrow', 'joy', 'calm', 'love'];
     for (let i = 0; i < 120; i++) {
       const a = r() * 6.28;
       const d = 66 + r() * 52;
+      if (waterAt(Math.cos(a) * d, Math.sin(a) * d) !== null || waterAt(Math.cos(a) * d + 2, Math.sin(a) * d) !== null) continue;
       this.wild.push({ id: -i - 1, mood: ids[i % ids.length], note: '', planted: 0, x: Math.cos(a) * d, z: Math.sin(a) * d, rot: r() * 6.28, growth: 0.75 + r() * 0.5 });
     }
   }
@@ -383,22 +545,24 @@ export class Forest {
   }
 
   /** Rebuild every instance from the player's trees. Cheap enough to call each second. */
-  sync(trees: TreeSave[]) {
+  /** Rebuild instances. Understory is only grown around trees near `focus`, which keeps a
+   *  year-old grove of hundreds of trees cheap; the world re-syncs as you walk. */
+  sync(trees: TreeSave[], focus?: { x: number; z: number }) {
     for (const sp of this.species.values()) sp.count = 0;
     for (const [m, n] of this.baseCounts) m.count = n;
     const add = (t: TreeSave) => {
       const sp = this.species.get(t.mood);
       if (!sp || sp.count >= CAP) return;
-      const g = Math.min(1.25, t.growth);
-      const k = g < 1 ? 1 - Math.pow(1 - g, 1.6) : g;
-      const h = sp.def.height * (0.07 + 0.93 * k) * (0.88 + ((t.id * 37) % 100) / 100 * 0.24);
+      const h = treeHeight(t);
       sp.posH.setXYZW(sp.count, t.x, heightAt(t.x, t.z) - 0.02 * h, t.z, h);
-      sp.rot.setXY(sp.count, t.rot, ((t.id * 0.6180339) % 1 + 1) % 1);
+      sp.rot.setXYZ(sp.count, t.rot, ((t.id * 0.6180339) % 1 + 1) % 1, 1);
+      sp.trees[sp.count] = t;
       sp.count++;
     };
     for (const t of this.wild) add(t);
     for (const t of trees) {
       add(t);
+      if (focus && Math.hypot(t.x - focus.x, t.z - focus.z) > 55) continue;
       // The forest floor answers each tree: ferns, shrubs and flowers move in as it grows.
       const life = Math.min(1, Math.max(0, (t.growth - 0.25) / 0.6));
       if (life <= 0) continue;
@@ -418,7 +582,9 @@ export class Forest {
       };
       ring(def.conifer ? 5 : 3, 'fern_02', 0.6, reach, 0.9, 1.7);
       ring(1, r() < 0.5 ? 'shrub_03' : r() < 0.5 ? 'shrub_02' : 'shrub_04', reach * 0.6, reach * 1.3, 0.8, 1.5);
-      ring(def.flowering ? 6 : 2, def.flowering ? 'flower_gazania' : 'dandelion_01', reach * 0.5, reach * 1.6, 0.9, 1.6);
+      // Flowers come and go with the seasons.
+      const fl = this.flowerSeason;
+      if (fl > 0.05) ring(def.flowering ? 6 : 2, def.flowering ? 'flower_gazania' : 'dandelion_01', reach * 0.5, reach * 1.6, 0.9 * fl, 1.6 * fl);
       ring(def.id === 'sorrow' || def.id === 'calm' ? 4 : 1, 'periwinkle_plant', 0.8, reach * 1.2, 0.9, 1.5);
     }
     for (const sp of this.species.values()) {

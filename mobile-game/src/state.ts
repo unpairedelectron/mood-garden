@@ -25,13 +25,24 @@ export interface Save {
   /** Creatures the player has already been told about. */
   met: string[];
   tutorial: number;
+  /** Desire-path wear, base64 (see paths.ts). */
+  paths?: string;
+  /** Calendar day (see clock.dayNumber) of the last planting: one feeling, one tree a day. */
+  lastPlantDay?: number;
+  /** Calendar days the grove was opened, newest last (kept for a couple of years). */
+  visits?: number[];
+  /** Anniversary days already pointed out, so each is only offered once. */
+  remembered?: number[];
+  /** Daily reminder hour (local), or null for none. */
+  remindAt?: number | null;
 }
 
 const KEY = 'moodgarden.grove.v1';
 /** Seconds of play (or away time) for a tree to reach full size. */
 export const GROW_SECONDS = 300;
 export const GARDEN_RADIUS = 56;
-export const MAX_TREES = 60;
+/** Room for more than a year of one-tree-a-day. */
+export const MAX_TREES = 420;
 
 export function freshSave(): Save {
   return { v: 2, trees: [], nextId: 1, px: 0, pz: 6, yaw: Math.PI, lastSeen: Date.now(), sound: true, met: [], tutorial: 0 };

@@ -38,5 +38,5 @@ EXPO_PUBLIC_GAME_URL=https://your-host.example/mood-garden/ npx expo start
 
 - Saves live in the web view's storage on the phone, per game address.
 - The screen is kept awake while the app is open.
-- For a store build, bundle the game's `dist/` into a native project (Capacitor, or an Expo development build
-  with the files as assets) rather than loading it over the network.
+- For store builds use the Capacitor project in `../mobile-game` (`ios/` and `android/`), which bundles the
+  game and adds haptics, notifications and sharing. This shell is for quick testing in Expo Go.

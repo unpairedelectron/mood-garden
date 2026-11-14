@@ -1,0 +1,42 @@
+{
+  "beds": {
+    "dawn": ["beds/dawn_chorus_01.m4a"],
+    "day": ["beds/meadow_day_01.m4a", "beds/meadow_day_02.m4a"],
+    "dusk": ["beds/evening_01.m4a"],
+    "night": ["beds/night_crickets_01.m4a"],
+    "wind_canopy": ["beds/wind_leaves_01.m4a"],
+    "rain_light": ["beds/rain_grass_01.m4a"],
+    "rain_leaves": ["beds/rain_canopy_01.m4a"],
+    "stream": ["beds/brook_01.m4a"],
+    "pond": ["beds/pond_01.m4a"],
+    "snow": ["beds/winter_quiet_01.m4a"]
+  },
+  "birds": {
+    "robin": { "files": ["birds/robin_01.m4a", "birds/robin_02.m4a", "birds/robin_03.m4a"], "hours": [[4.5, 10.5], [15.5, 21]], "gain": 0.8 },
+    "blackbird": { "files": ["birds/blackbird_01.m4a", "birds/blackbird_02.m4a"], "hours": [[4, 9], [17, 21.5]], "gain": 0.9, "seasons": ["spring", "summer"] },
+    "bluetit": { "files": ["birds/bluetit_01.m4a", "birds/bluetit_02.m4a"], "hours": [[6, 17]], "gain": 0.7 },
+    "goldfinch": { "files": ["birds/goldfinch_01.m4a", "birds/goldfinch_02.m4a"], "hours": [[7, 18]], "gain": 0.7 },
+    "woodpigeon": { "files": ["birds/woodpigeon_01.m4a"], "hours": [[8, 19]], "gain": 0.6 },
+    "tawny_owl": { "files": ["birds/tawny_owl_01.m4a"], "hours": [[20.5, 5]], "gain": 0.8 }
+  },
+  "steps": {
+    "grass": ["steps/grass_01.m4a", "steps/grass_02.m4a", "steps/grass_03.m4a", "steps/grass_04.m4a"],
+    "leaves": ["steps/leaves_01.m4a", "steps/leaves_02.m4a", "steps/leaves_03.m4a"],
+    "path": ["steps/dirt_01.m4a", "steps/dirt_02.m4a", "steps/dirt_03.m4a"],
+    "water": ["steps/water_01.m4a", "steps/water_02.m4a"],
+    "snow": ["steps/snow_01.m4a", "steps/snow_02.m4a", "steps/snow_03.m4a"],
+    "stone": ["steps/stone_01.m4a", "steps/stone_02.m4a"]
+  },
+  "score": {
+    "gain": 0.8,
+    "stems": {
+      "pad": "score/pad.m4a",
+      "joy": "score/joy.m4a",
+      "calm": "score/calm.m4a",
+      "love": "score/love.m4a",
+      "hope": "score/hope.m4a",
+      "courage": "score/courage.m4a",
+      "sorrow": "score/sorrow.m4a"
+    }
+  }
+}

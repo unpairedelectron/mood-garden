@@ -2,37 +2,22 @@
 // the frame loop that grows the forest.
 
 import * as THREE from 'three';
-import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import type { AudioEngine } from './audio';
+import type { Clock } from './clock';
+import { Precipitation } from './precip';
+import { Post, detectQuality, type Quality } from './post';
+import { Sky } from './sky';
 import { Forest, LIGHT } from './forest';
+import { NearTrees } from './neartrees';
+import { Fauna } from './fauna';
 import { Wildlife } from './life';
 import { MOOD_BY_ID, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
-import { WORLD, heightAt, heightTexture, terrainGeometry } from './terrain';
+import { HILL, WORLD, heightAt, heightTexture, pondShape, streamNearest, terrainGeometry, waterAt, waterDepth } from './terrain';
+import { Paths } from './paths';
+import { Water } from './water';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
-
-interface SkyDef {
-  file: string;
-  from: number;
-  sun: number;
-  exposure: number;
-  fog: number;
-  night: number;
-  bg: number;
-}
-// Which photographed sky is overhead at each (real, local) hour.
-const SKIES: SkyDef[] = [
-  { file: 'kloofendal_misty_morning_puresky', from: 5, sun: 4.2, exposure: 0.95, fog: 0.011, night: 0, bg: 1 },
-  { file: 'qwantani_mid_morning_puresky', from: 9, sun: 6.0, exposure: 0.8, fog: 0.005, night: 0, bg: 1 },
-  { file: 'belfast_sunset_puresky', from: 16.75, sun: 5.2, exposure: 1.0, fog: 0.006, night: 0, bg: 1 },
-  { file: 'qwantani_moon_noon_puresky', from: 19.75, sun: 1.8, exposure: 1.5, fog: 0.008, night: 1, bg: 0.55 },
-];
-function skyFor(hour: number): SkyDef {
-  let s = SKIES[SKIES.length - 1];
-  for (const k of SKIES) if (hour >= k.from) s = k;
-  return s;
-}
 
 export interface WorldEvents {
   toast: (text: string) => void;
@@ -43,6 +28,8 @@ export interface WorldEvents {
 
 export class World {
   readonly forest = new Forest();
+  readonly nearTrees = new NearTrees();
+  readonly fauna = new Fauna(this.nearTrees);
   readonly life: Wildlife;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -52,7 +39,21 @@ export class World {
   private audio: AudioEngine;
   private ev: WorldEvents;
   private sun = new THREE.DirectionalLight(0xffffff, 3);
-  private sky!: SkyDef;
+  readonly sky = new Sky();
+  readonly quality: Quality;
+  readonly post: Post;
+  readonly clock: Clock;
+  private precip = new Precipitation();
+  readonly paths = new Paths();
+  private pathIn = 0;
+  private syncedAt = new THREE.Vector2();
+  private hearIn = 0;
+  private hear = { stream: 0, pond: 0, canopy: 0 };
+  /** What is underfoot, for footsteps. */
+  surface: 'grass' | 'leaves' | 'path' | 'water' | 'snow' | 'stone' = 'grass';
+  private snowCover = 0;
+  private seasonIn = 0;
+  private wasNight = false;
   private mask!: THREE.CanvasTexture;
   private maskCtx!: CanvasRenderingContext2D;
   private pos = new THREE.Vector3();
@@ -71,27 +72,57 @@ export class World {
   private captionIn = 0;
   private lastCaption: TreeSave | null = null;
   private resScale = 1;
+  private fixedRes = /[?&](fixedres|still)\b/.test(location.search);
   private frameAcc = 0;
   private frames = 0;
   private v = new THREE.Vector3();
+  private v2 = new THREE.Vector2();
   private fwd = new THREE.Vector3();
   private pulse: THREE.Mesh;
   private pulseT = 9;
-  private hour: number;
+  /** ?stats: a small overlay for tuning on real devices. */
+  private stats = new URLSearchParams(location.search).has('stats') ? this.makeStats() : null;
+  private makeStats() {
+    const el = document.createElement('pre');
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99;margin:0;padding:6px 8px;font:11px/1.35 ui-monospace,monospace;color:#cfe;background:rgba(0,0,0,.55);border-radius:6px;pointer-events:none';
+    document.body.appendChild(el);
+    let acc = 0, n = 0, worst = 0;
+    return (raw: number) => {
+      acc += raw;
+      n++;
+      worst = Math.max(worst, raw);
+      if (acc < 0.5) return;
+      const info = this.renderer.info.render;
+      const gl = this.renderer.getContext();
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      el.textContent = [
+        `${(n / acc).toFixed(0)} fps · avg ${((acc / n) * 1000).toFixed(1)} ms · worst ${(worst * 1000).toFixed(0)} ms`,
+        `${info.calls} draws · ${(info.triangles / 1000).toFixed(0)}k tris `,
+        `quality ${this.quality} · res ×${this.resScale.toFixed(2)} · ${this.renderer.getPixelRatio().toFixed(2)} dpr`,
+        dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)).slice(0, 48) : '',
+      ].join('\n');
+      acc = n = worst = 0;
+    };
+  }
+
   /** False while the title card is up: the camera drifts and nothing grows. */
   active = false;
   persist = true;
 
-  constructor(canvas: HTMLCanvasElement, save: Save, audio: AudioEngine, ev: WorldEvents) {
+  constructor(canvas: HTMLCanvasElement, save: Save, audio: AudioEngine, clock: Clock, ev: WorldEvents) {
     this.canvas = canvas;
     this.save = save;
     this.audio = audio;
+    this.clock = clock;
     this.ev = ev;
-    const qs = new URLSearchParams(location.search);
-    const now = new Date();
-    this.hour = qs.has('hour') ? parseFloat(qs.get('hour')!) : now.getHours() + now.getMinutes() / 60;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    // Anti-aliasing happens in the HDR target, so the canvas itself needs none.
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // Count a whole frame (scene, shafts, composite) for the stats overlay.
+    this.renderer.info.autoReset = false;
+    this.quality = detectQuality(this.renderer);
+    this.post = new Post(this.quality);
+    if (this.quality === 'low') this.resScale = 0.8;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.life = new Wildlife();
@@ -109,14 +140,13 @@ export class World {
   async load(progress: (p: number, label: string) => void) {
     const tl = new THREE.TextureLoader();
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
-    this.sky = skyFor(this.hour);
 
-    progress(0.05, 'Opening the sky');
-    const [hdr, bg] = await Promise.all([
-      new HDRLoader().loadAsync(`${ASSETS}sky/${this.sky.file}.hdr`),
-      tl.loadAsync(`${ASSETS}sky/${this.sky.file}.jpg`),
-    ]);
-    this.applySky(hdr, bg);
+    progress(0.02, 'Opening the sky');
+    this.scene.fog = new THREE.FogExp2(0xbfc8d0, 0.008);
+    await this.sky.load(this.renderer, this.clock, (p) => progress(0.02 + p * 0.18, 'Opening the sky'));
+    this.scene.add(this.sky.mesh, this.precip.group);
+    // Snow already lying if it has been snowing.
+    this.snowCover = this.clock.weather.snow > 0.5 ? 0.7 : 0;
 
     progress(0.2, 'Laying the ground');
     const tex = async (name: string, srgb: boolean) => {
@@ -126,12 +156,16 @@ export class World {
       if (srgb) t.colorSpace = THREE.SRGBColorSpace;
       return t;
     };
-    const [gd, gn, ga, ld] = await Promise.all([
+    const [gd, gn, ga, ld, dd, pd] = await Promise.all([
       tex('forrest_ground_01_diffuse', true),
       tex('forrest_ground_01_nor_gl', false),
       tex('forrest_ground_01_arm', false),
       tex('leaves_forest_ground_diffuse', true),
+      tex('dirt_floor_diffuse', true),
+      tex('dry_river_pebbles_diffuse', true),
     ]);
+    const daysAway = Math.max(0, (Date.now() - this.save.lastSeen) / 864e5);
+    this.paths.load(this.save.paths, daysAway);
     const cv = document.createElement('canvas');
     cv.width = cv.height = 256;
     this.maskCtx = cv.getContext('2d')!;
@@ -141,11 +175,17 @@ export class World {
     ground.onBeforeCompile = (s) => {
       s.uniforms.uLitter = { value: ld };
       s.uniforms.uMask = { value: this.mask };
+      s.uniforms.uSeason = LIGHT.uSeason;
+      s.uniforms.uSnow = LIGHT.uSnow;
+      s.uniforms.uWet = LIGHT.uWet;
+      s.uniforms.uWorldMask = { value: this.paths.texture };
+      s.uniforms.uDirt = { value: dd };
+      s.uniforms.uPebble = { value: pd };
       s.vertexShader = s.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;')
         .replace('#include <begin_vertex>', `#include <begin_vertex>\nvWuv = position.xz / ${WORLD.toFixed(1)} + .5;`);
       s.fragmentShader = s.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;\nuniform sampler2D uLitter, uMask;')
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;\nuniform sampler2D uLitter, uMask, uWorldMask, uDirt, uPebble;\nuniform vec4 uSeason;\nuniform float uSnow, uWet;')
         .replace(
           '#include <map_fragment>',
           `// Two scales of each photo-texture hide the repeat; leaf litter takes over under trees.
@@ -158,18 +198,52 @@ export class World {
            vec4 litterC = mix(l1, l2, .4);
            float m = texture2D(uMask, vWuv).r;
            m = smoothstep(.2, .7, m + (g1.g - .25) * .9 * m);
-           diffuseColor *= mix(grassC, litterC * vec4(.8, .78, .7, 1.), m * .8);`,
+           // Autumn spreads leaf litter beyond the trees; seasons tint the meadow.
+           float fall = uSeason.z * .45 + uSeason.w * .25;
+           m = max(m, fall * smoothstep(.35, .75, macro + g1.r * .4));
+           vec3 tint = uSeason.x * vec3(.95, 1.06, .85) + uSeason.y * vec3(1.06, 1.0, .8) + uSeason.z * vec3(1.1, .92, .7) + uSeason.w * vec3(.9, .88, .84);
+           diffuseColor *= mix(grassC * vec4(tint, 1.), litterC * vec4(.8, .78, .7, 1.), m * .8);
+           // Trodden paths: bare earth with a ragged edge where you walk most.
+           vec4 wm = texture2D(uWorldMask, vWuv);
+           float worn = smoothstep(.2, .55, wm.r + (macro - .5) * .35 + (g1.g - .3) * .3);
+           vec3 dirt = mix(texture2D(uDirt, vMapUv * .9).rgb, texture2D(uDirt, vMapUv * .21 + .3).rgb, .35);
+           diffuseColor.rgb = mix(diffuseColor.rgb, dirt * vec3(.74, .7, .66), worn * .9);
+           // Stream and pond beds: pebbles and dark wet mud, wet banks around them.
+           float bed = smoothstep(.15, .6, wm.g);
+           vec3 peb = texture2D(uPebble, vMapUv * 1.4).rgb;
+           diffuseColor.rgb = mix(diffuseColor.rgb, peb * vec3(.55, .52, .45), bed);
+           float bank = smoothstep(.0, .2, wm.g) * (1. - bed);
+           diffuseColor.rgb *= 1. - bank * .35;
+           // Rain darkens the ground; snow lies in drifts, thinner under trees.
+           diffuseColor.rgb *= 1. - uWet * .32;
+           float drift = smoothstep(.25, .6, uSnow * (1.15 - m * .5) + (macro - .45) * .6);
+           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.86, .9, .96), drift);`,
+        )
+        .replace(
+          '#include <roughnessmap_fragment>',
+          `#include <roughnessmap_fragment>
+           roughnessFactor = mix(roughnessFactor, .62, max(uWet * .6, smoothstep(.0, .3, texture2D(uWorldMask, vWuv).g) * .5));`,
         );
     };
     const terrain = new THREE.Mesh(terrainGeometry(), ground);
     terrain.receiveShadow = true;
     this.scene.add(terrain);
 
-    await this.forest.load(heightTexture(), aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
-    this.scene.add(this.forest.group, this.life.group);
+    const hTex = heightTexture();
+    await this.forest.load(hTex, aniso, (p) => progress(0.25 + p * 0.65, 'Growing the forest'));
+    this.forest.setWorldMask(this.paths.texture);
+    this.forest.setGrassDensity(this.quality === 'low' ? 0.4 : this.quality === 'medium' ? 0.7 : 1);
+    this.scene.add(new Water(this.sky, hTex).group);
+    await this.nearTrees.load(this.forest.speciesList, aniso);
+    await this.fauna.load();
+    this.fauna.onSing = (sp, at) => this.audio.song(sp, at, this.camera);
+    this.scene.add(this.forest.group, this.nearTrees.group, this.life.group, this.fauna.group);
 
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    // Shadow detail and how many trees are drawn in full scale with the device.
+    const shadow = this.quality === 'low' ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(shadow, shadow);
+    this.nearTrees.range = this.quality === 'low' ? 0.65 : this.quality === 'medium' ? 0.85 : 1;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.05;
     const sc = this.sun.shadow.camera;
@@ -194,77 +268,10 @@ export class World {
       /* compile lazily */
     }
     progress(1, 'Ready');
+    this.forest.setSeason(this.clock.season);
+    this.atmosphere(0);
     this.last = performance.now();
     requestAnimationFrame(this.frame);
-  }
-
-  /** Derive sun direction, fog and ambient colour from the photographed sky itself. */
-  private applySky(hdr: THREE.DataTexture, bg: THREE.Texture) {
-    const sky = this.sky;
-    hdr.mapping = THREE.EquirectangularReflectionMapping;
-    bg.mapping = THREE.EquirectangularReflectionMapping;
-    bg.colorSpace = THREE.SRGBColorSpace;
-    const pm = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pm.fromEquirectangular(hdr).texture;
-    pm.dispose();
-    this.scene.background = bg;
-    this.scene.backgroundIntensity = sky.bg;
-    this.scene.environmentIntensity = 0.24;
-    this.renderer.toneMappingExposure = sky.exposure;
-
-    const img = hdr.image as unknown as { data: Uint16Array | Float32Array; width: number; height: number };
-    const { data, width: w, height: h } = img;
-    const half = data instanceof Uint16Array;
-    const px = (k: number) => (half ? THREE.DataUtils.fromHalfFloat(data[k]) : data[k]);
-    let best = -1, bi = 0, bj = 0;
-    const up = [0, 0, 0], horizon = [0, 0, 0], down = [0, 0, 0];
-    let nu = 0, nh = 0, nd = 0;
-    for (let j = 0; j < h; j += 2) {
-      const el = (0.5 - (j + 0.5) / h) * Math.PI;
-      for (let i = 0; i < w; i += 2) {
-        const k = (j * w + i) * 4;
-        const r = px(k), g = px(k + 1), b = px(k + 2);
-        const lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
-        if (lum > best) {
-          best = lum;
-          bi = i;
-          bj = j;
-        }
-        const c = [Math.min(r, 3), Math.min(g, 3), Math.min(b, 3)];
-        const into = el > 0.2 ? up : el > 0 ? horizon : down;
-        into[0] += c[0];
-        into[1] += c[1];
-        into[2] += c[2];
-        if (el > 0.2) nu++;
-        else if (el > 0) nh++;
-        else nd++;
-      }
-    }
-    const el = (0.5 - (bj + 0.5) / h) * Math.PI;
-    const az = ((bi + 0.5) / w - 0.5) * Math.PI * 2;
-    const dir = LIGHT.uSunDir.value.set(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
-    // Keep shadows a sensible length even at dawn and dusk.
-    if (dir.y < 0.28) {
-      dir.y = 0.28;
-      dir.normalize();
-    }
-    LIGHT.uSky.value.setRGB(up[0] / nu, up[1] / nu, up[2] / nu).multiplyScalar(0.3);
-    LIGHT.uGround.value.setRGB(down[0] / nd, down[1] / nd, down[2] / nd).multiplyScalar(0.16).add(new THREE.Color(0.02, 0.025, 0.012));
-    const fog = LIGHT.uFogColor.value.setRGB(horizon[0] / nh, horizon[1] / nh, horizon[2] / nh);
-    const peak = Math.max(fog.r, fog.g, fog.b);
-    if (peak > 0.9) fog.multiplyScalar(0.9 / peak);
-    LIGHT.uFogDensity.value = sky.fog;
-    this.scene.fog = new THREE.FogExp2(fog.getHex(), sky.fog);
-    (this.scene.fog as THREE.FogExp2).color.copy(fog);
-
-    // Sun colour: warm when the horizon is warm, cool under the moon.
-    const warm = new THREE.Color().copy(fog).lerp(new THREE.Color(1, 0.96, 0.9), sky.night ? 0 : 0.55);
-    const wp = Math.max(warm.r, warm.g, warm.b) || 1;
-    warm.multiplyScalar(1 / wp);
-    if (sky.night) warm.setRGB(0.62, 0.74, 1);
-    this.sun.color.copy(warm);
-    this.sun.intensity = sky.sun;
-    LIGHT.uSunColor.value.copy(warm).multiplyScalar(sky.sun / Math.PI);
   }
 
   // ------------------------------------------------------------- gardening
@@ -291,8 +298,11 @@ export class World {
       g.fillRect(x - r, y - r, r * 2, r * 2);
     }
     this.mask.needsUpdate = true;
-    this.forest.sync(this.save.trees);
+    this.forest.sync(this.save.trees, this.pos);
+    this.syncedAt.set(this.pos.x, this.pos.z);
     this.life.setForest(this.save.trees, this.forest, this.sky.night > 0.5);
+    this.wasNight = this.sky.night > 0.5;
+    this.fauna.setForest(this.save.trees);
     this.audio.setAwakened([...new Set(this.save.trees.filter((t) => t.growth >= 0.6).map((t) => t.mood))]);
   }
 
@@ -308,6 +318,8 @@ export class World {
       const x = this.pos.x - Math.sin(a) * dist;
       const z = this.pos.z - Math.cos(a) * dist;
       if (Math.hypot(x, z) > GARDEN_RADIUS) continue;
+      // Not in the water, nor on its very edge.
+      if (waterAt(x, z) !== null || waterAt(x + 1.2, z) !== null || waterAt(x - 1.2, z) !== null || waterAt(x, z + 1.2) !== null || waterAt(x, z - 1.2) !== null) continue;
       if (this.save.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 2.6)) continue;
       const tree: TreeSave = { id: this.save.nextId++, mood, note: note.trim().slice(0, 120), planted: Date.now(), x, z, rot: Math.random() * 6.28, growth: 0 };
       this.save.trees.push(tree);
@@ -333,6 +345,7 @@ export class World {
   }
 
   private store() {
+    this.save.paths = this.paths.encode();
     this.save.px = this.pos.x;
     this.save.pz = this.pos.z;
     this.save.yaw = this.yaw;
@@ -343,6 +356,99 @@ export class World {
   setMove(x: number, y: number) {
     this.moveX = x;
     this.moveY = y;
+    // Taking the stick hands control back from a guided walk.
+    if (this.tour && Math.hypot(x, y) > 0.25) this.endTour(true);
+  }
+
+  // ---------------------------------------------------------- guided walks
+  private tour: {
+    stops: TreeSave[];
+    i: number;
+    dwell: number;
+    arrived: boolean;
+    stuck: number;
+    detour: number;
+    from: THREE.Vector2;
+    arrive: (t: TreeSave, i: number, n: number) => void;
+    done: (interrupted: boolean) => void;
+  } | null = null;
+
+  /** Walk the player past each tree in turn, pausing at each one. */
+  startTour(stops: TreeSave[], arrive: (t: TreeSave, i: number, n: number) => void, done: (interrupted: boolean) => void) {
+    this.endTour(true);
+    if (!stops.length) return;
+    this.tour = { stops, i: 0, dwell: 0, arrived: false, stuck: 0, detour: 0, from: new THREE.Vector2(this.pos.x, this.pos.z), arrive, done };
+  }
+  get touring() {
+    return !!this.tour;
+  }
+  /** Skip to the next stop of a guided walk. */
+  nextStop() {
+    if (this.tour) this.tour.dwell = 0.01;
+  }
+  endTour(interrupted = false) {
+    const t = this.tour;
+    this.tour = null;
+    if (t) t.done(interrupted);
+  }
+
+  /** Steer the walk toward the current stop; returns stick input. */
+  private steer(dt: number): [number, number] {
+    const t = this.tour!;
+    const tree = t.stops[t.i];
+    const dx = tree.x - this.pos.x, dz = tree.z - this.pos.z;
+    const d = Math.hypot(dx, dz);
+    const turnTo = (target: number, rate: number) => {
+      let a = target - this.yaw;
+      a = Math.atan2(Math.sin(a), Math.cos(a));
+      this.yaw += a * Math.min(1, dt * rate);
+    };
+    const stand = 2.4 + MOOD_BY_ID[tree.mood].height * 0.12;
+    if (t.arrived) {
+      // Stand and look up into the tree.
+      turnTo(Math.atan2(-dx, -dz), 2.5);
+      this.pitch += (0.22 - this.pitch) * Math.min(1, dt * 1.5);
+      t.dwell -= dt;
+      if (t.dwell <= 0) {
+        t.i++;
+        t.arrived = false;
+        if (t.i >= t.stops.length) this.endTour(false);
+      }
+      return [0, 0];
+    }
+    if (d < stand) {
+      t.arrived = true;
+      t.dwell = 9;
+      t.arrive(tree, t.i, t.stops.length);
+      return [0, 0];
+    }
+    // Every second and a half, check we are getting somewhere; if not, step around.
+    t.stuck += dt;
+    if (t.stuck > 1.5) {
+      const moved = t.from.distanceTo(new THREE.Vector2(this.pos.x, this.pos.z));
+      if (moved < 0.6) t.detour = 1.4;
+      t.from.set(this.pos.x, this.pos.z);
+      t.stuck = 0;
+    }
+    let want = Math.atan2(-dx, -dz);
+    if (t.detour > 0) {
+      t.detour -= dt;
+      want += 1.1;
+    }
+    turnTo(want, 2.2);
+    this.pitch += (-0.04 - this.pitch) * Math.min(1, dt * 1.2);
+    return [0, d < stand + 3 ? 0.45 : 0.8];
+  }
+
+  // ----------------------------------------------------------------- photo
+  /** Render a clean frame and return it as a JPEG data URL. */
+  capture(): string {
+    this.draw();
+    return this.canvas.toDataURL('image/jpeg', 0.92);
+  }
+  /** Where the walker is and which way they face, for the map. */
+  get whereabouts() {
+    return { x: this.pos.x, z: this.pos.z, yaw: this.yaw };
   }
 
   private bindInput() {
@@ -372,8 +478,11 @@ export class World {
   private resize = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * this.resScale);
+    const cap = this.quality === 'low' ? 1.5 : this.quality === 'medium' ? 1.75 : 2;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap) * this.resScale);
     this.renderer.setSize(w, h, false);
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.post.setSize(size.x, size.y);
     this.camera.aspect = w / h;
     // Portrait screens get a taller field of view so the forest does not feel like a keyhole.
     this.camera.fov = w < h ? 74 : 60;
@@ -398,6 +507,7 @@ export class World {
   private walk(dt: number) {
     let x = this.moveX;
     let y = this.moveY;
+    if (this.tour) [x, y] = this.steer(dt);
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) y += 1;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) y -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
@@ -423,6 +533,15 @@ export class World {
         nz = t.z + (dz / d) * r;
       }
     }
+    // Wade the stream and the pond's shallows; deeper water turns you back.
+    if (waterDepth(nx, nz) > 0.55) {
+      if (waterDepth(nx, this.pos.z) <= 0.55) nz = this.pos.z;
+      else if (waterDepth(this.pos.x, nz) <= 0.55) nx = this.pos.x;
+      else {
+        nx = this.pos.x;
+        nz = this.pos.z;
+      }
+    }
     // The mist thickens at the edge of the land and turns you gently back.
     const R = Math.hypot(nx, nz);
     const limit = GARDEN_RADIUS + 14;
@@ -437,7 +556,11 @@ export class World {
       this.bob += dt * v * 3.4;
       const before = Math.floor(this.stepPhase);
       this.stepPhase += dt * v * 0.72;
-      if (Math.floor(this.stepPhase) !== before) this.audio.footstep('grass', v > 3);
+      if (Math.floor(this.stepPhase) !== before) {
+        this.surface = this.surfaceAt(nx, nz);
+        this.audio.footstep(this.surface, v > 3);
+        if (this.surface !== 'water') this.paths.step(nx, nz);
+      }
       if (this.save.tutorial < 1 && this.stepPhase > 6) {
         this.save.tutorial = 1;
         this.ev.change();
@@ -445,13 +568,86 @@ export class World {
     }
   }
 
+  faunaContext() {
+    const c = this.clock;
+    const [rise, set] = c.daylightHours;
+    const bell = (h: number, centre: number, w: number) => Math.max(0, 1 - Math.abs(((h - centre + 36) % 24) - 12) / w);
+    return {
+      walker: this.pos,
+      walkerSpeed: this.vel.length(),
+      hour: c.hour,
+      day: c.day,
+      dawn: bell(c.hour, rise + 0.6, 1.6),
+      dusk: bell(c.hour, set + 0.2, 1.6),
+      rain: c.weather.rain,
+      trees: this.save.trees,
+    };
+  }
+
+  /** What the ground is like here, for footsteps. */
+  private surfaceAt(x: number, z: number): World['surface'] {
+    if (waterDepth(x, z) > 0.03) return 'water';
+    if (this.snowCover > 0.45) return 'snow';
+    if (this.paths.at(x, z) > 0.35) return 'path';
+    if (Math.hypot(x - HILL.x, z - HILL.z) < 2.2) return 'stone';
+    for (const t of this.save.trees) {
+      const reach = 1.2 + MOOD_BY_ID[t.mood].height * 0.35 * Math.min(1, t.growth);
+      if (Math.hypot(t.x - x, t.z - z) < reach) return 'leaves';
+    }
+    return this.clock.season.autumn > 0.5 ? 'leaves' : 'grass';
+  }
+
+  /** Dev: stop the real-time loop so frames can be stepped and captured by tests. */
+  private still = import.meta.env.DEV && new URLSearchParams(location.search).has('still');
+
+  /** Dev: advance n frames of dt seconds without drawing, then draw once. */
+  step(n: number, dt = 1 / 30) {
+    for (let i = 0; i < n; i++) this.tick(dt, dt, i === n - 1);
+  }
+  /** Dev: draw a frame and return it as a data URL. */
+  snap(): string {
+    this.draw();
+    return this.canvas.toDataURL('image/png');
+  }
+
   private frame = (now: number) => {
+    if (this.still) return;
     requestAnimationFrame(this.frame);
     const raw = (now - this.last) / 1000;
-    const dt = Math.min(0.05, raw);
     this.last = now;
+    this.tick(Math.min(0.05, raw), raw, true);
+  };
+
+  /** Atmosphere: sky, sun, weather and season for this moment. */
+  private atmosphere(dt: number) {
+    const c = this.clock;
+    c.update(dt);
+    this.sky.update(c, this.scene);
+    const w = c.weather;
+    this.sun.color.copy(this.sky.sunColor);
+    this.sun.intensity = this.sky.sunIntensity;
+    this.renderer.toneMappingExposure = this.sky.exposure;
+    const s = c.season;
+    LIGHT.uSeason.value.set(s.spring, s.summer, s.autumn, s.winter);
+    LIGHT.uWet.value = w.wet;
+    // Snow builds up while it falls and melts away slowly after.
+    this.snowCover = Math.min(1, Math.max(0, this.snowCover + dt * (w.snow > 0.3 ? 0.012 * w.snow : -0.0025 * (1 + c.day))));
+    LIGHT.uSnow.value = this.snowCover;
+    this.precip.update(this.pos, w.rain, w.snow, w.wind, s.autumn * (s.leaf < 0.95 ? 1 : 0.3));
+    this.seasonIn -= dt;
+    if (this.seasonIn <= 0) {
+      this.seasonIn = 30;
+      this.forest.setSeason(s);
+    }
+    const night = this.sky.night > 0.5;
+    if (night !== this.wasNight) this.refresh();
+  }
+
+  private tick(dt: number, raw: number, render: boolean) {
+    this.renderer.info.reset();
     this.time += dt;
     LIGHT.uTime.value = this.time;
+    this.atmosphere(dt);
 
     // Hold a steady frame rate on slower phones by trading resolution.
     this.frameAcc += raw;
@@ -460,7 +656,7 @@ export class World {
       const prev = this.resScale;
       if (avg > 1 / 38) this.resScale = Math.max(0.55, this.resScale - 0.1);
       else if (avg < 1 / 56) this.resScale = Math.min(1, this.resScale + 0.05);
-      if (prev !== this.resScale && !new URLSearchParams(location.search).has('fixedres')) this.resize();
+      if (prev !== this.resScale && !this.fixedRes) this.resize();
       this.frameAcc = this.frames = 0;
     }
 
@@ -492,18 +688,61 @@ export class World {
     this.sun.target.updateMatrixWorld();
 
     this.forest.setFocus(this.pos);
+    // The understory follows you round a big grove.
+    if (this.syncedAt.distanceTo(this.v2.set(this.pos.x, this.pos.z)) > 12) this.refresh();
+    this.pathIn -= dt;
+    if (this.pathIn <= 0) {
+      this.pathIn = 2;
+      this.paths.flush();
+    }
+    this.nearTrees.update(this.forest.speciesList, this.camera.position);
+    this.fauna.update(dt, this.time, this.faunaContext());
+    // Big animals appear in the menu only once their models are installed, and count once seen.
+    for (const c of this.life.creatures) {
+      if (c.id === 'perching') c.here = this.fauna.welcome.perching;
+      if (c.id === 'deer' || c.id === 'fox') {
+        c.hidden = !this.fauna.available[c.id];
+        c.here = this.fauna.seen[c.id];
+      }
+    }
     const arrivals = this.life.update(dt, this.time, this.camera, this.pos);
     for (const a of arrivals) this.ev.met(a);
 
     const grown = this.grown;
+    // Where sound comes from: water nearby, canopy overhead. Sampled a few times a second.
+    this.hearIn -= dt;
+    if (this.hearIn <= 0) {
+      this.hearIn = 0.25;
+      const sn = streamNearest(this.pos.x, this.pos.z);
+      this.hear.stream = Math.max(0, 1 - Math.max(0, sn.d - 1.5) / 22);
+      this.hear.pond = Math.min(1, Math.max(0, pondShape(this.pos.x, this.pos.z) + 0.9));
+      let cover = 0;
+      for (const t of this.save.trees) {
+        const reach = 2 + MOOD_BY_ID[t.mood].height * 0.45 * Math.min(1, t.growth);
+        const d = Math.hypot(t.x - this.pos.x, t.z - this.pos.z);
+        if (d < reach * 2) cover += (1 - d / (reach * 2)) * Math.min(1, t.growth);
+      }
+      this.hear.canopy = Math.min(1, cover / 3);
+    }
+    this.camera.getWorldDirection(this.fwd);
+    this.audio.listen(this.camera.position, this.fwd);
+    const fc = this.faunaContext();
+    const w = this.clock.weather;
     this.audio.update(dt, {
-      day: 1 - this.sky.night,
+      hour: this.clock.hour,
+      day: this.clock.day,
+      dawn: fc.dawn,
+      dusk: fc.dusk,
       vitality: grown >= 4 ? 1 : grown >= 2 ? 0.4 : 0,
-      shore: 0,
-      rain: 0,
+      rain: w.rain,
+      snow: w.snow,
+      wind: w.wind,
+      stream: this.hear.stream,
+      pond: this.hear.pond,
+      canopy: this.hear.canopy,
       speed: this.vel.length(),
-      gliding: false,
       life: Math.min(1, grown / 6),
+      season: this.clock.season.name,
     });
 
     // Name the tree you are standing in front of.
@@ -538,12 +777,38 @@ export class World {
       (this.pulse.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.8;
     } else this.pulse.visible = false;
 
-    this.renderer.render(this.scene, this.camera);
+    if (render) this.draw();
+    this.stats?.(raw);
 
     this.saveIn -= dt;
     if (this.saveIn <= 0) {
       this.saveIn = 6;
       if (this.active && this.persist) this.store();
     }
-  };
+  }
+
+  private draw() {
+    const c = this.clock;
+    const w = c.weather;
+    const sun = this.sky.trueSun;
+    const night = this.sky.night;
+    // Golden hour: the sun low but up.
+    const golden = (1 - night) * Math.max(0, 1 - Math.abs(sun.y - 0.08) / 0.2) * (1 - w.cloud * 0.7);
+    const dawn = Math.max(0, 1 - Math.abs(c.hour - (c.daylightHours[0] + 1)) / 2);
+    this.post.render(this.renderer, this.scene, this.camera, {
+      exposure: this.sky.exposure,
+      sunDir: sun.y > -0.05 || night > 0.5 ? sun : LIGHT.uSunDir.value,
+      sunColor: LIGHT.uSunColor.value,
+      fogColor: LIGHT.uFogColor.value,
+      // Mist lies low at dawn, after rain, and when the weather brings it.
+      mist: 0.0012 + dawn * 0.005 + w.mist * 0.022 + w.rain * 0.006 + w.wet * 0.002 + night * 0.0015,
+      cloudShadow: (1 - night) * Math.min(1, sun.y * 4) * (0.12 + Math.max(0, 0.3 - Math.abs(w.cloud - 0.4) * 0.6)) * (1 - w.rain),
+      shafts: (1 - w.cloud * 0.85) * (night > 0.5 ? 0.15 : 0.55 + golden * 0.6) * (1 + w.mist * 0.8),
+      night,
+      golden,
+      wet: w.wet,
+      wind: w.wind,
+      time: this.time,
+    });
+  }
 }
