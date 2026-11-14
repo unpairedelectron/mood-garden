@@ -225,9 +225,26 @@ export class Clock {
     this.hour = ((h % 24) + 24) % 24;
   }
 
+  /** Extra speed for the sky, e.g. while you sit and watch (1 = normal time-lapse). */
+  boost = 1;
+  /** 0..1: a rainbow, for a while after rain stops in daylight. */
+  rainbow = 0;
+  private rainedFor = 0;
+  /** 0..1: fog lying in the valleys, on some mornings around dawn. */
+  get valleyFog(): number {
+    const [rise] = this.daylightHours;
+    const day = dayNumber(this.start);
+    // About one morning in three, more in autumn.
+    const chance = 0.3 + this.season.autumn * 0.25;
+    if (!this.forcedFog && hash(day * 2.31 + 0.7) > chance) return 0;
+    const h = this.hour;
+    return Math.max(0, Math.min(1, (h - (rise - 1.5)) / 1.2, (rise + 2.6 - h) / 1.4)) * (1 - this.weather.rain);
+  }
+  private forcedFog = new URLSearchParams(location.search).has('fog');
+
   update(dt: number) {
     this.elapsed += dt;
-    const step = (dt * TIME_LAPSE) / 3600;
+    const step = (dt * TIME_LAPSE * this.boost) / 3600;
     if (this.held !== null) this.held = (this.held + step) % 24;
     else if (!this.frozen) this.hour = (this.hour + step) % 24;
     const k = this.target();
@@ -242,7 +259,16 @@ export class Clock {
     w.mist += (to.mist - w.mist) * a;
     w.wind += (to.wind - w.wind) * a;
     w.wet = Math.min(1, Math.max(0, w.wet + dt * (w.rain > 0.3 ? 0.03 * w.rain : -0.002 * TIME_LAPSE * (0.3 + this.day))));
+    // A rainbow when real rain has just eased off and the sun is out.
+    if (w.rain > 0.5) this.rainedFor += dt;
+    else if (w.rain < 0.15 && this.rainedFor > 20 && this.day > 0.6) {
+      this.rainbow = 1;
+      this.rainedFor = 0;
+    }
+    this.rainbow = Math.max(0, this.rainbow - (dt * TIME_LAPSE * this.boost) / (25 * 60));
+    if (this.forcedRainbow) this.rainbow = 1;
   }
+  private forcedRainbow = new URLSearchParams(location.search).has('rainbow');
 
   /** Words for the HUD: "Late afternoon · light rain". */
   describe(): string {

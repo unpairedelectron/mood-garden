@@ -31,8 +31,20 @@ and runs as a web app.
    canopy), a Ruin in the deep woods, Flower Meadow and Sunset Ridge — each named quietly the first time you
    arrive, then listed in the menu so you can walk back. You hear the falls long before you see them; the
    deep woods are hushed; the music steps back while you walk and rises when a view opens or you find a place.
-7. **The screen gets out of the way.** While you walk, the HUD fades and messages wait until you stop. The
-   Plant button only appears in the home clearing, where trees are planted.
+7. **The screen gets out of the way.** While you walk, the HUD fades and messages wait until you stop.
+8. **Plant wherever you are.** Your daily tree can go anywhere in the land (not in water or on rock), so your
+   trees mark where you have been, and a memory walk becomes a walk back through your journeys.
+9. **Things to find.** Feathers in the woods, stones by the water, flowers to press from the glades, and at each
+   of the five places a seed that lets one feeling grow a new kind of tree (young pine, island tree, mountain
+   karee, othonna, old quiver tree). They catch the light when you are near and are kept in the **Field
+   journal**, with a map that fills in only where you have walked. There is no "you are here": you find your
+   way by the land, the sound of the falls, and the lanterns on your own trees after dark.
+10. **Take your time.** Tap the seat icon to sit down and the sky runs ten times faster while you watch;
+    double-tap the stick to stroll on hands-free. Wading and pushing through thickets slow you down, and when
+    you stand still the view breathes.
+11. **Rare moments.** A rainbow when rain clears and the sun is low; fog lying in the valleys on some dawns
+    (go up the hill); shooting stars on clear nights; Glow Hollow lighting up after dark; and, once the deer
+    model is installed, a stag on Sunset Ridge at dawn.
 
 ## How it looks and sounds the way it does
 
@@ -86,6 +98,8 @@ Useful URL parameters (dev and testing):
 | `?stats` | Frame-time, draw-call and triangle overlay for tuning on devices |
 | `?unlimited` | Lift the one-tree-a-day limit |
 | `?proxyanimals` | Stand-in deer and fox bodies to test their behaviour without the model pack |
+| `?rainbow` | Show the after-rain rainbow (it needs a low sun: try with `?hour=18.3`) |
+| `?fog` | Make this morning one with valley fog (try `?hour=6.5` from Lookout Hill) |
 
 ## Ship it natively
 
@@ -167,7 +181,8 @@ src/
 ## Asset credits
 
 All from Poly Haven, licensed CC0: island_tree_02, tree_small_02, jacaranda_tree, fir_sapling,
-quiver_tree_02, searsia_lucida, fern_02, shrub_02/03/04, flower_gazania, dandelion_01,
+quiver_tree_02, searsia_lucida, island_tree_01, pine_sapling_small, searsia_burchellii, othonna_cerarioides,
+quiver_tree_01, fern_02, shrub_02/03/04, flower_gazania, dandelion_01,
 periwinkle_plant, rock_07, rock_moss_set_01, tree_stump_01, grass_medium_01; textures forrest_ground_01,
 leaves_forest_ground, dirt_floor, dry_river_pebbles, bark_willow_02, bark_brown_02, eucalyptus_bark; HDRIs
 kloofendal_misty_morning_puresky, qwantani_mid_morning_puresky, belfast_sunset_puresky and

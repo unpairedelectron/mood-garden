@@ -57,6 +57,8 @@ ui.innerHTML = `
   <div class="toast" id="toast"></div>
   <div class="stick" id="stick"><div class="stick__knob" id="knob"></div></div>
   <button class="plant" id="plantBtn"><i class="leaf"></i><span id="plantLabel">Plant</span></button>
+  <button class="round round--sit" id="sitBtn" aria-label="Sit down"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="5" r="2"/><path d="M12 8v6h5l1 6M12 14l-4 6M8 11h8"/></svg></button>
+  <button class="stand" id="standBtn">Stand up</button>
   <div class="photo" id="photo">
     <div class="photo__looks">${['natural', 'warm', 'faded', 'mono'].map((l) => `<button class="chip${l === 'natural' ? ' is-on' : ''}" data-look="${l}">${l[0].toUpperCase() + l.slice(1)}</button>`).join('')}</div>
     <label class="photo__time"><span id="photoHour">Time</span><input type="range" id="hourRange" min="0" max="24" step="0.05" /></label>
@@ -112,6 +114,7 @@ function refresh() {
   const text = COACH[Math.min(save.tutorial, COACH.length - 1)];
   coach.textContent = text;
   coach.classList.toggle('is-on', !!text && world.active && !photoOn && !world.touring);
+  ui.classList.toggle('is-sitting', world.sitting);
 }
 
 function caption(t: TreeSave | null) {
@@ -647,7 +650,29 @@ $('#photoClose').addEventListener('click', () => photoMode(false));
     knob.style.transform = '';
     world.setMove(0, 0);
   };
+  // Double-tap the stick to stroll on hands-free; tap again (or push it) to stop.
+  let downAt = 0, lastTap = 0, travelled = 0;
+  stick.addEventListener('pointerup', () => {
+    const now = performance.now();
+    if (now - downAt > 260 || travelled > 0.35) return;
+    if (world.cruise) {
+      world.cruise = false;
+      lastTap = 0;
+      return;
+    }
+    if (now - lastTap < 380) {
+      world.cruise = true;
+      lastTap = 0;
+      void haptic('light');
+      toast('Strolling on. Look around as you go; tap the stick to stop.', true);
+    } else lastTap = now;
+  });
+  stick.addEventListener('pointermove', (e) => {
+    if (e.pointerId === id) travelled = Math.max(travelled, Math.hypot(e.clientX - cx, e.clientY - cy) / 46);
+  });
   stick.addEventListener('pointerdown', (e) => {
+    downAt = performance.now();
+    travelled = 0;
     id = e.pointerId;
     const r = stick.getBoundingClientRect();
     cx = r.left + r.width / 2;
@@ -738,6 +763,12 @@ $('#plantBtn').addEventListener('click', () => {
   audio.ui('open');
   plantSheet();
 });
+$('#sitBtn').addEventListener('click', () => {
+  world.sit(true);
+  void haptic('soft');
+  toast('Sitting a while. The sky moves faster while you watch.', true);
+});
+$('#standBtn').addEventListener('click', () => world.sit(false));
 $('#photoBtn').addEventListener('click', () => {
   audio.ui('open');
   photoMode(!photoOn);

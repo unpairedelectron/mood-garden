@@ -219,14 +219,15 @@ void main() {
   vA = uNight * (.8 + .2 * sin(uTime * 1.3 + position.x * 7.));
   gl_Position = projectionMatrix * mv;
   // A warm point near by; never smaller than a few pixels, so far trees still show.
-  gl_PointSize = max(.9 * uPx / max(d, .5), 5.);
+  gl_PointSize = max(1.6 * uPx / max(d, .5), 7.);
 }`;
 const LANTERN_FRAG = /* glsl */ `
 varying float vA;
 void main() {
   vec2 q = gl_PointCoord - .5;
-  float a = exp(-dot(q, q) * 18.) * vA;
-  gl_FragColor = vec4(vec3(1., .72, .36) * a * 3., a);
+  // A bright core in a soft halo.
+  float a = (exp(-dot(q, q) * 60.) + exp(-dot(q, q) * 9.) * .45) * vA;
+  gl_FragColor = vec4(vec3(1., .72, .36) * a * 4., a);
   #include <colorspace_fragment>
 }`;
 

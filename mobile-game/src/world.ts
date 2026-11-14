@@ -18,6 +18,7 @@ import { Land } from './land';
 import { Falls } from './landmarks';
 import { Keepsakes, type Keepsake } from './keepsakes';
 import { Explored } from './map';
+import { Moments } from './moments';
 import { Paths } from './paths';
 import { Water } from './water';
 
@@ -64,6 +65,7 @@ export class World {
   private hear = { stream: 0, pond: 0, canopy: 0, woods: 0, view: 0 };
   private falls!: Falls;
   readonly keepsakes = new Keepsakes();
+  private moments = new Moments();
   readonly explored = new Explored();
   /** What is underfoot, for footsteps. */
   surface: 'grass' | 'leaves' | 'path' | 'water' | 'snow' | 'stone' = 'grass';
@@ -267,7 +269,7 @@ export class World {
     this.audio.addSource('waterfall', this.falls.sound);
     this.explored.load(this.save.explored);
     this.keepsakes.setFound(this.save.keepsakes ?? {});
-    this.scene.add(this.keepsakes.group);
+    this.scene.add(this.keepsakes.group, this.moments.group);
     await this.nearTrees.load(this.forest.speciesList, aniso);
     await this.fauna.load();
     // A seed's tree loads the first time one is needed; give it full detail and redraw.
@@ -410,8 +412,25 @@ export class World {
   setMove(x: number, y: number) {
     this.moveX = x;
     this.moveY = y;
-    // Taking the stick hands control back from a guided walk.
-    if (this.tour && Math.hypot(x, y) > 0.25) this.endTour(true);
+    const pushed = Math.hypot(x, y) > 0.25;
+    // Taking the stick hands control back from a guided walk, ends a stroll, and stands you up.
+    if (this.tour && pushed) this.endTour(true);
+    if (pushed) this.cruise = false;
+    if (pushed && this.sitting) this.sit(false);
+  }
+
+  // ------------------------------------------------------------- moving
+  /** Hands-free stroll: walk on at an easy pace while you look around. */
+  cruise = false;
+  /** Sitting: lower down, still, and the sky runs faster while you watch. */
+  sitting = false;
+  private eye = 1.62;
+  private stillT = 0;
+  sit(on: boolean) {
+    this.sitting = on;
+    this.cruise = false;
+    this.clock.boost = on ? 10 : 1;
+    this.ev.change();
   }
 
   // ---------------------------------------------------------- guided walks
@@ -555,6 +574,7 @@ export class World {
     // Portrait screens get a taller field of view so the forest does not feel like a keyhole.
     this.camera.fov = w < h ? 74 : 60;
     this.camera.updateProjectionMatrix();
+    this.moments.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
     this.keepsakes.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
     this.falls?.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
     this.life.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
@@ -569,8 +589,17 @@ export class World {
     }
     const gy = heightAt(this.pos.x, this.pos.z);
     this.pos.y = gy;
-    cam.position.set(this.pos.x, gy + 1.62 + Math.sin(this.bob) * 0.028, this.pos.z);
-    cam.rotation.set(this.pitch, this.yaw, Math.cos(this.bob * 0.5) * 0.004, 'YXZ');
+    // Sitting lowers the eye; wading sinks you a little into the water.
+    const wade = Math.min(0.35, waterDepth(this.pos.x, this.pos.z) * 0.6);
+    this.eye += ((this.sitting ? 0.95 : 1.62) - wade - this.eye) * Math.min(1, dt * 2.5);
+    // Standing still, the view breathes: a slow, slight drift, as if held by a person.
+    this.stillT = this.vel.length() < 0.2 ? this.stillT + dt : 0;
+    const k = Math.min(1, Math.max(0, (this.stillT - 1.5) / 3)) * (this.active ? 1 : 0);
+    const t = this.time;
+    const swayP = (Math.sin(t * 0.31) * 0.006 + Math.sin(t * 0.13 + 1) * 0.004) * k;
+    const swayY = (Math.sin(t * 0.17 + 2) * 0.008 + Math.sin(t * 0.07) * 0.006) * k;
+    cam.position.set(this.pos.x, gy + this.eye + Math.sin(this.bob) * 0.028 + Math.sin(t * 0.9) * 0.004 * k, this.pos.z);
+    cam.rotation.set(this.pitch + swayP, this.yaw + swayY, Math.cos(this.bob * 0.5) * 0.004, 'YXZ');
     cam.updateMatrixWorld();
   }
 
@@ -578,13 +607,23 @@ export class World {
     let x = this.moveX;
     let y = this.moveY;
     if (this.tour) [x, y] = this.steer(dt);
+    else if (this.cruise && Math.hypot(x, y) < 0.1) y = 0.6;
+    if (this.sitting) x = y = 0;
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) y += 1;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) y -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1;
     const mag = Math.min(1, Math.hypot(x, y));
     // An unhurried stroll; pushing the stick to its edge breaks into a jog.
-    const speed = mag > 0.92 ? 4.2 : 2.1 * mag;
+    // Water and thick undergrowth slow you down.
+    const depth = waterDepth(this.pos.x, this.pos.z);
+    const wading = depth > 0.08 ? 1 - Math.min(0.5, depth * 1.4) : 1;
+    let brush = 1;
+    for (const t of this.forest.nearWild) {
+      if ((t.mood === 'sorrow' || t.mood === 'hope') && Math.hypot(t.x - this.pos.x, t.z - this.pos.z) < 1.8) brush = 0.62;
+    }
+    const going = (mag > 0.92 ? 4.2 : 2.1 * mag) * wading * brush * (1 - this.hear.woods * 0.12);
+    const speed = this.tour ? Math.max(going, 2.1 * mag * 0.8) : going;
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
     const l = Math.hypot(x, y) || 1;
     const tx = ((-s * y + c * x) / l) * speed;
@@ -720,6 +759,7 @@ export class World {
       this.seasonIn = 30;
       this.forest.setSeason(s);
     }
+    this.moments.update(dt, this.camera, this.sky.night, 1 - w.cloud);
     // Lanterns on your trees from dusk to dawn.
     this.keepsakes.setNight(Math.min(1, Math.max(0, 1 - c.day * 1.4)));
     const night = this.sky.night > 0.5;
@@ -924,7 +964,8 @@ export class World {
       sunColor: LIGHT.uSunColor.value,
       fogColor: LIGHT.uFogColor.value,
       // Mist lies low at dawn, after rain, and when the weather brings it.
-      mist: 0.0012 + dawn * 0.005 + w.mist * 0.022 + w.rain * 0.006 + w.wet * 0.002 + night * 0.0015,
+      mist: 0.0012 + dawn * 0.005 + w.mist * 0.022 + w.rain * 0.006 + w.wet * 0.002 + night * 0.0015 + c.valleyFog * 0.07,
+      valleyFog: c.valleyFog,
       cloudShadow: (1 - night) * Math.min(1, sun.y * 4) * (0.12 + Math.max(0, 0.3 - Math.abs(w.cloud - 0.4) * 0.6)) * (1 - w.rain),
       shafts: (1 - w.cloud * 0.85) * (night > 0.5 ? 0.15 : 0.55 + golden * 0.6) * (1 + w.mist * 0.8),
       night,

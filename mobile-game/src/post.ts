@@ -137,6 +137,8 @@ export interface GradeParams {
   wet: number;
   wind: number;
   time: number;
+  /** 0..1: mist lying in the valleys (anchored to the land, not the eye). */
+  valleyFog?: number;
 }
 
 export class Post {
@@ -248,7 +250,10 @@ export class Post {
     u.uExposure.value = g.exposure;
     u.uTime.value = g.time;
     u.uMist.value = g.mist;
-    u.uMistBase.value = camera.position.y - 1.6;
+    // Normally the mist hugs the ground around you; valley fog lies at a fixed level, so from
+    // high ground you look down on it.
+    const vf = g.valleyFog ?? 0;
+    u.uMistBase.value = THREE.MathUtils.lerp(camera.position.y - 1.6, -3.5, vf);
     u.uCloudShadow.value = g.cloudShadow;
     u.uWind.value = g.wind;
     u.uFlash.value = this.flash;

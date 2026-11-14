@@ -21,7 +21,7 @@ import { speciesOf } from './moods';
 import type { NearTrees } from './neartrees';
 import type { TreeSave } from './state';
 import { GARDEN_RADIUS } from './state';
-import { heightAt, waterAt } from './terrain';
+import { heightAt, placeById, waterAt } from './terrain';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
 
@@ -588,8 +588,52 @@ export class Fauna {
     }
   }
 
+  /** A stag stands on Sunset Ridge at dawn, once a day, if you are anywhere near. */
+  private stag: Animal | null = null;
+  private stagDay = -1;
+  private updateStag(dt: number, ctx: FaunaContext) {
+    const ridge = placeById('ridge');
+    const today = Math.floor(Date.now() / 864e5);
+    const near = Math.hypot(ctx.walker.x - ridge.x, ctx.walker.z - ridge.z);
+    if (!this.stag) {
+      if (this.available.deer && ctx.dawn > 0.5 && near < 380 && near > 40 && this.stagDay !== today) {
+        this.stagDay = today;
+        const x = ridge.x + 9, z = ridge.z + 5;
+        this.stag = this.spawn('deer', new THREE.Vector3(x, heightAt(x, z), z));
+        this.stag.root.scale.multiplyScalar(1.15);
+        // Facing east, toward the grove and the rising sun.
+        this.stag.heading = Math.PI / 2;
+        this.stag.root.rotation.y = this.stag.heading;
+        this.stag.state = 'alert';
+      }
+      return;
+    }
+    const a = this.stag;
+    const d = a.root.position.distanceTo(ctx.walker);
+    if (d < 60) this.seen.deer = true;
+    if (a.state === 'alert') {
+      this.play(a, 'alert');
+      a.speed = 0;
+      if (d < 30 || ctx.dawn < 0.05) {
+        // Gone over the far side of the ridge.
+        a.state = 'bolt';
+        a.target.set(ridge.x - 160, 0, ridge.z + (Math.random() - 0.5) * 60);
+      }
+    } else {
+      this.play(a, 'run');
+      this.move(a, dt, ANIMAL_SPEED.deer.run, 4);
+      if (Math.hypot(a.root.position.x - ridge.x, a.root.position.z - ridge.z) > 130) {
+        this.despawn(a);
+        this.stag = null;
+        return;
+      }
+    }
+    this.animate(a, dt);
+  }
+
   private perchIn = 0;
   update(dt: number, time: number, ctx: FaunaContext) {
+    this.updateStag(dt, ctx);
     this.perchIn -= dt;
     if (this.perchIn <= 0) {
       this.perchIn = 4;

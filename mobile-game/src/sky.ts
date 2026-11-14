@@ -53,7 +53,9 @@ void main() {
 const SKY_FRAG = /* glsl */ `
 uniform sampler2D uA, uB;
 uniform float uMix, uRotA, uRotB, uIntA, uIntB, uCloud, uMist, uNight, uTime, uWind, uRain;
-uniform vec3 uFogColor, uSunDir, uSunColor, uSkyAmb;
+uniform vec3 uFogColor, uSunDir, uSunColor, uSkyAmb, uTrueSun;
+uniform float uRainbow;
+vec3 hue(float h) { return clamp(abs(mod(h * 6. + vec3(0., 4., 2.), 6.) - 3.) - 1., 0., 1.); }
 varying vec3 vDir;
 vec2 equi(vec3 d, float rot) {
   float c = cos(-rot), s = sin(-rot);
@@ -96,6 +98,15 @@ void main() {
   vec3 shade = mix(uFogColor * .8, lit, .55 - uCloud * .25);
   col = mix(col, shade, c * mix(.55, .92, uCloud));
 
+  // A rainbow after rain: 42 degrees from the point opposite the sun, red on the outside.
+  if (uRainbow > .01) {
+    float ang = degrees(acos(clamp(dot(d, -uTrueSun), -1., 1.)));
+    float t = (ang - 40.4) / 2.6;
+    if (t > 0. && t < 1.) {
+      float lum = dot(col, vec3(.3, .55, .15));
+      col += hue((1. - t) * .78) * sin(t * 3.1416) * uRainbow * (.13 + lum * .2) * smoothstep(0., .06, d.y) * (1. - uCloud * .6);
+    }
+  }
   // Overcast: the photo greys out under a uniform cloud deck.
   vec3 deck = uFogColor * (1.05 - up * .35) * (1. - uRain * .3);
   col = mix(col, deck, uCloud * .8);
@@ -128,6 +139,8 @@ export class Sky {
     uSunDir: LIGHT.uSunDir,
     uSunColor: LIGHT.uSunColor,
     uSkyAmb: LIGHT.uSky,
+    uTrueSun: { value: new THREE.Vector3(0, 1, 0) },
+    uRainbow: { value: 0 },
   };
   private measured: Measured[] = [];
   private photos = new Map<number, THREE.Texture>();
@@ -287,6 +300,8 @@ export class Sky {
     u.uCloud.value = w.cloud;
     u.uMist.value = w.mist;
     u.uRain.value = w.rain;
+    u.uRainbow.value = clock.rainbow * (1 - this.night);
+    u.uTrueSun.value.copy(this.trueSun);
 
     // Light: interpolate what the photos measured, then let weather dim it.
     const dir = LIGHT.uSunDir.value.copy(this.trueSun);

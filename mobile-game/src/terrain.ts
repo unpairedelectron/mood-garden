@@ -180,6 +180,7 @@ export const PLACES: Place[] = [
   { id: 'oldone', name: 'The Old One', line: 'It was here long before the grove.', x: 215, z: 150, r: 18, glade: 24 },
   { id: 'ruin', name: 'The Ruin', line: 'Someone lived here, once.', x: -150, z: -300, r: 11, glade: 11 },
   { id: 'meadow', name: 'Flower Meadow', line: 'Open sky, after the trees.', x: 160, z: -280, r: 32, glade: 50 },
+  { id: 'hollow', name: 'Glow Hollow', line: 'Something here lights up after dark.', x: 305, z: -125, r: 10, glade: 9 },
   { id: 'ridge', name: 'Sunset Ridge', line: 'Facing west, where the day ends.', x: RIDGE.x - 6, z: RIDGE.z, r: 14, glade: 0 },
 ];
 const GLADES = PLACES.filter((p) => p.glade > 0).map((p) => ({ x: p.x, z: p.z, r: p.glade }));
