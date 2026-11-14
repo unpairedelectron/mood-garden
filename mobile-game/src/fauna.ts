@@ -17,7 +17,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { treeHeight } from './forest';
-import { MOOD_BY_ID } from './moods';
+import { speciesOf } from './moods';
 import type { NearTrees } from './neartrees';
 import type { TreeSave } from './state';
 import { GARDEN_RADIUS } from './state';
@@ -233,7 +233,7 @@ export class Fauna {
       .slice(0, 12);
     for (const t of near) {
       const H = treeHeight(t);
-      const n = MOOD_BY_ID[t.mood].height > 6 ? 4 : 2;
+      const n = speciesOf(t).height > 6 ? 4 : 2;
       this.perchSpots.push(...this.nearTrees.perches(t, H, heightAt(t.x, t.z), n, t.id * 31 + 7));
     }
   }

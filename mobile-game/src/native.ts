@@ -4,7 +4,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { dayNumber, seasonAt, southernHemisphere } from './clock';
-import { MOOD_BY_ID } from './moods';
+import { MOOD_BY_ID, speciesOf } from './moods';
 import { GROW_SECONDS, type Save } from './state';
 
 export const isNative = Capacitor.isNativePlatform();
@@ -113,7 +113,7 @@ export function plan(save: Save, now = new Date()): Planned[] {
     if (t.growth >= 1) continue;
     const at = t0 + (1 - t.growth) * GROW_SECONDS * 1000;
     if (at - t0 < 90e3) continue;
-    out.push({ id: 1000 + (t.id % 9000), at: new Date(at), title: 'Your grove', body: `Your ${MOOD_BY_ID[t.mood].tree.toLowerCase()} has grown to full height.` });
+    out.push({ id: 1000 + (t.id % 9000), at: new Date(at), title: 'Your grove', body: `Your ${speciesOf(t).tree.toLowerCase()} has grown to full height.` });
     if (out.length > 3) break;
   }
   // Seasons: blossom on flowering trees, leaves turning on deciduous ones.
@@ -130,7 +130,7 @@ export function plan(save: Save, now = new Date()): Planned[] {
     const d = findDay((p) => Math.abs(p - 0.14) < 0.004);
     if (d) out.push({ id: 20, at: tenAm(d), title: 'Blossom', body: 'Your jacaranda has come into bloom.' });
   }
-  if (has((m) => !!MOOD_BY_ID[m as keyof typeof MOOD_BY_ID]?.deciduous)) {
+  if (save.trees.some((t) => speciesOf(t).deciduous)) {
     const d = findDay((p) => Math.abs(p - 0.6) < 0.004);
     if (d) out.push({ id: 21, at: tenAm(d), title: 'Autumn', body: 'The leaves are starting to turn in your grove.' });
   }

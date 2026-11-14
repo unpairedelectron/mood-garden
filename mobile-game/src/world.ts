@@ -11,11 +11,13 @@ import { Forest, LIGHT } from './forest';
 import { NearTrees } from './neartrees';
 import { Fauna } from './fauna';
 import { Wildlife } from './life';
-import { MOOD_BY_ID, type MoodId } from './moods';
+import { SPECIES_BY_ID, speciesOf, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
 import { HILL, LAND, LAND_LIMIT, LocalHeight, PLACES, WORLD, forestDensity, forestTexture, type Place, heightAt, heightTexture, pondShape, streamNearest, waterAt, waterDepth } from './terrain';
 import { Land } from './land';
 import { Falls } from './landmarks';
+import { Keepsakes, type Keepsake } from './keepsakes';
+import { Explored } from './map';
 import { Paths } from './paths';
 import { Water } from './water';
 
@@ -28,6 +30,8 @@ export interface WorldEvents {
   met: (creature: string) => void;
   /** Arrived somewhere for the first time. */
   found: (place: Place) => void;
+  /** Picked something up. */
+  keepsake: (k: Keepsake) => void;
 }
 
 export class World {
@@ -59,6 +63,8 @@ export class World {
   private hearIn = 0;
   private hear = { stream: 0, pond: 0, canopy: 0, woods: 0, view: 0 };
   private falls!: Falls;
+  readonly keepsakes = new Keepsakes();
+  readonly explored = new Explored();
   /** What is underfoot, for footsteps. */
   surface: 'grass' | 'leaves' | 'path' | 'water' | 'snow' | 'stone' = 'grass';
   private snowCover = 0;
@@ -259,8 +265,13 @@ export class World {
     this.falls = new Falls();
     this.scene.add(this.falls.group);
     this.audio.addSource('waterfall', this.falls.sound);
+    this.explored.load(this.save.explored);
+    this.keepsakes.setFound(this.save.keepsakes ?? {});
+    this.scene.add(this.keepsakes.group);
     await this.nearTrees.load(this.forest.speciesList, aniso);
     await this.fauna.load();
+    // A seed's tree loads the first time one is needed; give it full detail and redraw.
+    this.forest.onSpeciesLoaded = (sp) => void this.nearTrees.add(sp).then(() => this.refresh());
     this.fauna.onSing = (sp, at) => this.audio.song(sp, at, this.camera);
     this.scene.add(this.forest.group, this.nearTrees.group, this.life.group, this.fauna.group);
 
@@ -318,7 +329,7 @@ export class World {
     g.fillStyle = '#000';
     g.fillRect(0, 0, 256, 256);
     for (const t of this.save.trees) {
-      const def = MOOD_BY_ID[t.mood];
+      const def = speciesOf(t);
       const r = (1.2 + def.height * 0.42) * Math.min(1, t.growth * 1.3);
       if (r < 0.3) continue;
       const x = (t.x / WORLD + 0.5) * 256;
@@ -331,16 +342,18 @@ export class World {
       g.fillRect(x - r, y - r, r * 2, r * 2);
     }
     this.mask.needsUpdate = true;
+    this.forest.need(this.save.trees);
     this.forest.sync(this.save.trees, this.pos);
     this.syncedAt.set(this.pos.x, this.pos.z);
     this.life.setForest(this.save.trees, this.forest, this.sky.night > 0.5);
     this.wasNight = this.sky.night > 0.5;
     this.fauna.setForest(this.save.trees);
+    this.keepsakes.setTrees(this.save.trees);
     this.audio.setAwakened([...new Set(this.save.trees.filter((t) => t.growth >= 0.6).map((t) => t.mood))]);
   }
 
-  /** Plant a tree a few paces ahead of where the walker is looking. */
-  plant(mood: MoodId, note: string): boolean {
+  /** Plant a tree a few paces ahead of where the walker is looking: anywhere in the land. */
+  plant(mood: MoodId, note: string, kind?: string): boolean {
     if (this.save.trees.length >= MAX_TREES) {
       this.ev.toast('Your grove is full. Let a tree go to make room.');
       return false;
@@ -350,11 +363,15 @@ export class World {
       const a = this.yaw + da;
       const x = this.pos.x - Math.sin(a) * dist;
       const z = this.pos.z - Math.cos(a) * dist;
-      if (Math.hypot(x, z) > GARDEN_RADIUS) continue;
+      if (Math.hypot(x, z) > LAND_LIMIT - 40) continue;
+      // Not on a rock face, and not crowding a wild tree's trunk.
+      if (Math.abs(heightAt(x + 1, z) - heightAt(x - 1, z)) > 1.3 || Math.abs(heightAt(x, z + 1) - heightAt(x, z - 1)) > 1.3) continue;
+      if (this.forest.nearWild.some((t) => Math.hypot(t.x - x, t.z - z) < 2.4 * Math.min(2.5, t.size ?? 1))) continue;
       // Not in the water, nor on its very edge.
       if (waterAt(x, z) !== null || waterAt(x + 1.2, z) !== null || waterAt(x - 1.2, z) !== null || waterAt(x, z + 1.2) !== null || waterAt(x, z - 1.2) !== null) continue;
       if (this.save.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 2.6)) continue;
       const tree: TreeSave = { id: this.save.nextId++, mood, note: note.trim().slice(0, 120), planted: Date.now(), x, z, rot: Math.random() * 6.28, growth: 0 };
+      if (kind && kind !== mood && SPECIES_BY_ID[kind]?.mood === mood) tree.kind = kind;
       this.save.trees.push(tree);
       this.refresh();
       this.pulse.position.set(x, heightAt(x, z) + 0.05, z);
@@ -366,7 +383,7 @@ export class World {
       this.store();
       return true;
     }
-    this.ev.toast(Math.hypot(this.pos.x, this.pos.z) > GARDEN_RADIUS - 2 ? 'Your trees grow in the home clearing. Walk back toward it to plant.' : 'No room right here. Walk to a clearer spot and try again.');
+    this.ev.toast('No room right here. Walk to a clearer spot and try again.');
     return false;
   }
 
@@ -379,6 +396,10 @@ export class World {
 
   private store() {
     this.save.paths = this.paths.encode();
+    if (this.explored.dirty) {
+      this.save.explored = this.explored.encode();
+      this.explored.dirty = false;
+    }
     this.save.px = this.pos.x;
     this.save.pz = this.pos.z;
     this.save.yaw = this.yaw;
@@ -449,7 +470,7 @@ export class World {
       a = Math.atan2(Math.sin(a), Math.cos(a));
       this.yaw += a * Math.min(1, dt * rate);
     };
-    const stand = 2.4 + MOOD_BY_ID[tree.mood].height * 0.12;
+    const stand = 2.4 + speciesOf(tree).height * 0.12;
     if (t.arrived) {
       // Stand and look up into the tree.
       turnTo(Math.atan2(-dx, -dz), 2.5);
@@ -534,6 +555,7 @@ export class World {
     // Portrait screens get a taller field of view so the forest does not feel like a keyhole.
     this.camera.fov = w < h ? 74 : 60;
     this.camera.updateProjectionMatrix();
+    this.keepsakes.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
     this.falls?.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
     this.life.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
   };
@@ -650,7 +672,7 @@ export class World {
     if (this.paths.at(x, z) > 0.35) return 'path';
     if (Math.hypot(x - HILL.x, z - HILL.z) < 2.2) return 'stone';
     for (const t of this.save.trees) {
-      const reach = 1.2 + MOOD_BY_ID[t.mood].height * 0.35 * Math.min(1, t.growth);
+      const reach = 1.2 + speciesOf(t).height * 0.35 * Math.min(1, t.growth);
       if (Math.hypot(t.x - x, t.z - z) < reach) return 'leaves';
     }
     return this.clock.season.autumn > 0.5 ? 'leaves' : 'grass';
@@ -698,6 +720,8 @@ export class World {
       this.seasonIn = 30;
       this.forest.setSeason(s);
     }
+    // Lanterns on your trees from dusk to dawn.
+    this.keepsakes.setNight(Math.min(1, Math.max(0, 1 - c.day * 1.4)));
     const night = this.sky.night > 0.5;
     if (night !== this.wasNight) this.refresh();
   }
@@ -789,7 +813,7 @@ export class World {
         if (d < 14) cover += (1 - d / 14) * 0.5;
       }
       for (const t of this.save.trees) {
-        const reach = 2 + MOOD_BY_ID[t.mood].height * 0.45 * Math.min(1, t.growth);
+        const reach = 2 + speciesOf(t).height * 0.45 * Math.min(1, t.growth);
         const d = Math.hypot(t.x - this.pos.x, t.z - this.pos.z);
         if (d < reach * 2) cover += (1 - d / (reach * 2)) * Math.min(1, t.growth);
       }
@@ -800,6 +824,16 @@ export class World {
       for (let k = 0; k < 8; k++) ring += heightAt(this.pos.x + Math.cos(k * 0.785) * 35, this.pos.z + Math.sin(k * 0.785) * 35);
       const rel = this.pos.y - ring / 8;
       this.hear.view = THREE.MathUtils.smoothstep(rel, 2.5, 8) * (1 - this.hear.woods * 0.8);
+      // The map fills in where you go, and you pick up what you walk over.
+      this.explored.see(this.pos.x, this.pos.z);
+      if (this.active) {
+        const got = (this.save.keepsakes ??= {});
+        for (const k of this.keepsakes.within(this.pos.x, this.pos.z, got)) {
+          got[k.id] = Date.now();
+          this.keepsakes.setFound(got);
+          this.ev.keepsake(k);
+        }
+      }
       // Somewhere new?
       if (this.active && !this.touring) {
         const found = (this.save.found ??= []);

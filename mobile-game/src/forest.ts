@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import { MOODS, MOOD_BY_ID, type MoodDef, type MoodId } from './moods';
+import { MOODS, type MoodId, type SpeciesDef, SPECIES_BY_ID, speciesOf } from './moods';
 import type { TreeSave } from './state';
 import { FALLS, HILL, LAND, LAND_LIMIT, LocalHeight, RIDGE, WORLD, forestDensity, heightAt, placeById, waterAt } from './terrain';
 
@@ -158,7 +158,7 @@ void main() {
 }`;
 
 interface Species {
-  def: MoodDef;
+  def: SpeciesDef;
   mesh: THREE.Mesh;
   posH: THREE.InstancedBufferAttribute;
   rot: THREE.InstancedBufferAttribute;
@@ -178,7 +178,7 @@ const CAP = 4000;
 
 /** Height of a tree in metres for its growth, with a little per-tree variety. */
 export function treeHeight(t: TreeSave): number {
-  const def = MOOD_BY_ID[t.mood];
+  const def = speciesOf(t);
   const g = Math.min(1.25, t.growth);
   const k = g < 1 ? 1 - Math.pow(1 - g, 1.6) : g;
   return def.height * (0.07 + 0.93 * k) * (0.88 + (((Math.abs(t.id) * 37) % 100) / 100) * 0.24) * (t.size ?? 1);
@@ -247,7 +247,12 @@ const rnd = (seed: number) => {
 
 export class Forest {
   readonly group = new THREE.Group();
-  private species = new Map<MoodId, Species>();
+  private species = new Map<string, Species>();
+  private loadingSpecies = new Map<string, Promise<void>>();
+  private maxAniso = 4;
+  private lastSeason: Parameters<Forest['setSeason']>[0] | null = null;
+  /** Called when a species finishes loading late (a seed's tree), so the world can re-sync. */
+  onSpeciesLoaded: (sp: Species) => void = () => {};
   private kinds = new Map<string, ScatterKind>();
   private grassU = {
     uCenter: { value: new THREE.Vector3() },
@@ -280,51 +285,14 @@ export class Forest {
     this.grassU.uHeight.value = local.texture;
     this.grassU.uHeightOrigin.value = local.origin;
     this.grassU.uForest.value = forestTex;
-    const tl = new THREE.TextureLoader();
     let done = 0;
     const total = MOODS.length + 11;
     const tick = () => progress(++done / total);
 
+    this.maxAniso = maxAniso;
     await Promise.all(
-      MOODS.map(async (def) => {
-        const [info, albedo, normal] = await Promise.all([
-          fetch(`${ASSETS}trees/${def.asset}.json`).then((r) => r.json() as Promise<{ width: number; height: number; cols: number; rows: number }>),
-          tl.loadAsync(`${ASSETS}trees/${def.asset}_albedo.webp`),
-          tl.loadAsync(`${ASSETS}trees/${def.asset}_normal.webp`),
-        ]);
-        albedo.colorSpace = THREE.SRGBColorSpace;
-        albedo.anisotropy = Math.min(4, maxAniso);
-        albedo.premultiplyAlpha = false;
-        const g = quad();
-        const posH = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 4), 4);
-        const rot = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3);
-        rot.setUsage(THREE.DynamicDrawUsage);
-        posH.setUsage(THREE.DynamicDrawUsage);
-        g.setAttribute('iPosH', posH);
-        g.setAttribute('iRot', rot);
-        g.instanceCount = 0;
-        const uniforms = {
-          ...LIGHT,
-          uAlbedo: { value: albedo },
-          uNormal: { value: normal },
-          uAspect: { value: info.width / info.height },
-          uCover: { value: 1.2 },
-          uAutumn: { value: 0 },
-          uBloom: { value: 0 },
-          uAutumnCol: { value: new THREE.Vector3(...def.autumn) },
-          uBloomCol: { value: new THREE.Vector3(...(def.blossom ?? [1, 1, 1])) },
-          uCanopyBase: { value: 0 },
-        };
-        const mat = new THREE.ShaderMaterial({ vertexShader: IMPOSTOR_VERT, fragmentShader: IMPOSTOR_FRAG, uniforms, alphaToCoverage: true });
-        // Shadow passes default to back faces; a card has none, so ask for both.
-        mat.shadowSide = THREE.DoubleSide;
-        mat.side = THREE.DoubleSide;
-        const mesh = new THREE.Mesh(g, mat);
-        mesh.customDepthMaterial = new THREE.ShaderMaterial({ vertexShader: IMPOSTOR_VERT, fragmentShader: DEPTH_FRAG, uniforms, side: THREE.DoubleSide });
-        mesh.castShadow = true;
-        mesh.frustumCulled = false;
-        this.group.add(mesh);
-        this.species.set(def.id, { def, mesh, posH, rot, aspect: info.width / info.height, count: 0, uniforms, albedo, normal, info, trees: [] });
+      MOODS.map(async (m) => {
+        await this.loadSpecies(SPECIES_BY_ID[m.id]);
         tick();
       }),
     );
@@ -435,6 +403,68 @@ export class Forest {
     this.buildScenery();
   }
 
+
+  /** Load one kind of tree's impostor. Seed species load on demand, when first needed. */
+  loadSpecies(def: SpeciesDef): Promise<void> {
+    let p = this.loadingSpecies.get(def.id);
+    if (p) return p;
+    const tl = new THREE.TextureLoader();
+    const maxAniso = this.maxAniso;
+    p = (async () => {
+        const [info, albedo, normal] = await Promise.all([
+          fetch(`${ASSETS}trees/${def.asset}.json`).then((r) => r.json() as Promise<{ width: number; height: number; cols: number; rows: number }>),
+          tl.loadAsync(`${ASSETS}trees/${def.asset}_albedo.webp`),
+          tl.loadAsync(`${ASSETS}trees/${def.asset}_normal.webp`),
+        ]);
+        albedo.colorSpace = THREE.SRGBColorSpace;
+        albedo.anisotropy = Math.min(4, maxAniso);
+        albedo.premultiplyAlpha = false;
+        const g = quad();
+        const posH = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 4), 4);
+        const rot = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3);
+        rot.setUsage(THREE.DynamicDrawUsage);
+        posH.setUsage(THREE.DynamicDrawUsage);
+        g.setAttribute('iPosH', posH);
+        g.setAttribute('iRot', rot);
+        g.instanceCount = 0;
+        const uniforms = {
+          ...LIGHT,
+          uAlbedo: { value: albedo },
+          uNormal: { value: normal },
+          uAspect: { value: info.width / info.height },
+          uCover: { value: 1.2 },
+          uAutumn: { value: 0 },
+          uBloom: { value: 0 },
+          uAutumnCol: { value: new THREE.Vector3(...def.autumn) },
+          uBloomCol: { value: new THREE.Vector3(...(def.blossom ?? [1, 1, 1])) },
+          uCanopyBase: { value: 0 },
+        };
+        const mat = new THREE.ShaderMaterial({ vertexShader: IMPOSTOR_VERT, fragmentShader: IMPOSTOR_FRAG, uniforms, alphaToCoverage: true });
+        // Shadow passes default to back faces; a card has none, so ask for both.
+        mat.shadowSide = THREE.DoubleSide;
+        mat.side = THREE.DoubleSide;
+        const mesh = new THREE.Mesh(g, mat);
+        mesh.customDepthMaterial = new THREE.ShaderMaterial({ vertexShader: IMPOSTOR_VERT, fragmentShader: DEPTH_FRAG, uniforms, side: THREE.DoubleSide });
+        mesh.castShadow = true;
+        mesh.frustumCulled = false;
+        this.group.add(mesh);
+        const sp: Species = { def, mesh, posH, rot, aspect: info.width / info.height, count: 0, uniforms, albedo, normal, info, trees: [] };
+        this.species.set(def.id, sp);
+        if (this.lastSeason) this.setSeason(this.lastSeason);
+        this.onSpeciesLoaded(sp);
+    })();
+    this.loadingSpecies.set(def.id, p);
+    return p;
+  }
+
+  /** Make sure every kind of tree in this list is (or is being) loaded. */
+  need(trees: TreeSave[]) {
+    for (const t of trees) {
+      const d = speciesOf(t);
+      if (!this.loadingSpecies.has(d.id)) void this.loadSpecies(d);
+    }
+  }
+
   /** Wrap grass instances around the camera, seat them on the terrain and let them sway. */
   private patchGrass(mat: THREE.MeshStandardMaterial, height: number) {
     const u = this.grassU;
@@ -507,6 +537,7 @@ export class Forest {
 
   /** Recolour every species for the season. Cheap; call when the season moves. */
   setSeason(s: { spring: number; summer: number; autumn: number; winter: number; leaf: number; bloom: number }) {
+    this.lastSeason = s;
     this.flowerSeason = Math.min(1, s.spring * 1.2 + s.summer + s.autumn * 0.35);
     for (const sp of this.species.values()) {
       const d = sp.def;
@@ -514,7 +545,7 @@ export class Forest {
       u.uCover.value = d.deciduous ? 0.08 + s.leaf * 1.1 : 1.2;
       // Turning peaks mid-autumn and lingers on what is left in early winter.
       u.uAutumn.value = d.deciduous ? Math.min(1, s.autumn * 1.4 + s.winter * 0.5) : s.autumn * 0.15;
-      u.uBloom.value = d.blossom ? s.bloom * (d.id === 'love' ? 0.85 : 0.35) : 0;
+      u.uBloom.value = d.blossom ? s.bloom * (d.id === 'love' || d.id === 'othonna' ? 0.85 : 0.35) : 0;
     }
   }
 
@@ -712,7 +743,7 @@ export class Forest {
     for (const sp of this.species.values()) sp.count = 0;
     for (const [m, n] of this.baseCounts) m.count = n;
     const add = (t: TreeSave) => {
-      const sp = this.species.get(t.mood);
+      const sp = this.species.get(speciesOf(t).id);
       if (!sp || sp.count >= CAP) return;
       const h = treeHeight(t);
       sp.posH.setXYZW(sp.count, t.x, (t.y ?? heightAt(t.x, t.z)) - 0.02 * h, t.z, h);
@@ -742,7 +773,7 @@ export class Forest {
       // The forest floor answers each tree: ferns, shrubs and flowers move in as it grows.
       const life = Math.min(1, Math.max(0, (t.growth - 0.25) / 0.6));
       if (life <= 0) continue;
-      const def = MOOD_BY_ID[t.mood];
+      const def = speciesOf(t);
       const r = rnd(t.id * 7919 + 13);
       const reach = 1.2 + def.height * 0.28;
       const ring = (n: number, kind: string, min: number, max: number, lo: number, hi: number) => {
@@ -761,7 +792,7 @@ export class Forest {
       // Flowers come and go with the seasons.
       const fl = this.flowerSeason;
       if (fl > 0.05) ring(def.flowering ? 6 : 2, def.flowering ? 'flower_gazania' : 'dandelion_01', reach * 0.5, reach * 1.6, 0.9 * fl, 1.6 * fl);
-      ring(def.id === 'sorrow' || def.id === 'calm' ? 4 : 1, 'periwinkle_plant', 0.8, reach * 1.2, 0.9, 1.5);
+      ring(def.mood === 'sorrow' || def.mood === 'calm' ? 4 : 1, 'periwinkle_plant', 0.8, reach * 1.2, 0.9, 1.5);
     }
     for (const sp of this.species.values()) {
       (sp.mesh.geometry as THREE.InstancedBufferGeometry).instanceCount = sp.count;
@@ -831,7 +862,7 @@ export class Forest {
     out.length = 0;
     for (const t of trees) {
       if (t.growth < 0.45) continue;
-      const def = MOOD_BY_ID[t.mood];
+      const def = speciesOf(t);
       const r = rnd(t.id * 104729 + 7);
       const n = def.flowering ? 3 : 1;
       for (let i = 0; i < n; i++) {

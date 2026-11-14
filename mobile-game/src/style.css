@@ -527,3 +527,22 @@ button { cursor: pointer; }
 .places strong { display: block; font-family: var(--serif); font-weight: 500; font-size: 19px; }
 .places span { font-size: 12.5px; color: var(--muted); }
 .places .link { margin: 0; white-space: nowrap; }
+
+/* Keepsakes and the field journal */
+.place.is-small em { font-size: 28px; }
+.kinds { display: flex; gap: 6px; flex-wrap: wrap; margin: -4px 0 12px; }
+.kinds:empty { display: none; }
+.cta-row:has(#journalBtn) { grid-template-columns: 1fr 1fr 1fr; }
+.cta-row .cta--soft { font-size: 13px; padding: 0 6px; }
+.map--paper { background: #e9e1cf; }
+.sheet h3 small { font-weight: 500; letter-spacing: 0.04em; color: var(--muted); text-transform: none; margin-left: 6px; }
+.finds { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.find { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.find i { width: 14px; height: 14px; margin-top: 4px; border-radius: 50%; background: var(--gold); }
+.find--feather i { border-radius: 0 80% 0 80%; background: #8fb3e8; transform: rotate(-20deg); }
+.find--stone i { background: #a7a29a; border-radius: 45% 55% 50% 50%; }
+.find--flower i { background: #e98fb1; border-radius: 30%; transform: rotate(45deg); }
+.find--seed i { background: #c79a4a; border-radius: 50% 50% 50% 0; }
+.find strong { display: block; font-family: var(--serif); font-weight: 500; font-size: 18px; }
+.find span { display: block; font-size: 12.5px; color: rgba(247, 241, 230, 0.82); }
+.find time { font-size: 11.5px; color: var(--muted); }

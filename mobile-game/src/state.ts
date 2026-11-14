@@ -12,6 +12,8 @@ export interface TreeSave {
   rot: number;
   /** 0 = just planted, 1 = full grown. */
   growth: number;
+  /** Which kind of tree (a species id); absent means the feeling's own tree. */
+  kind?: string;
   /** Wild trees only: size relative to a typical tree (old giants are 2×+). */
   size?: number;
   /** Wild trees only: cached ground height. */
@@ -37,6 +39,10 @@ export interface Save {
   visits?: number[];
   /** Anniversary days already pointed out, so each is only offered once. */
   remembered?: number[];
+  /** Keepsakes picked up: id -> when (see keepsakes.ts). */
+  keepsakes?: Record<string, number>;
+  /** Land you have walked, as a base64 bitset of 16 m squares (see map.ts). */
+  explored?: string;
   /** Places you have found (see terrain.PLACES). */
   found?: string[];
   /** Daily reminder hour (local), or null for none. */

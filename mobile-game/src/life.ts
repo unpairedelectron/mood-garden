@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import type { Forest } from './forest';
 import { LIGHT } from './forest';
-import { MOOD_BY_ID } from './moods';
+import { speciesOf } from './moods';
 import type { TreeSave } from './state';
 import { heightAt } from './terrain';
 
@@ -213,8 +213,8 @@ export class Wildlife {
     const grown = trees.filter((t) => t.growth >= 0.6);
     this.stats = {
       grown: grown.length,
-      flowering: grown.filter((t) => MOOD_BY_ID[t.mood].flowering).length,
-      conifers: grown.filter((t) => MOOD_BY_ID[t.mood].conifer).length,
+      flowering: grown.filter((t) => speciesOf(t).flowering).length,
+      conifers: grown.filter((t) => speciesOf(t).conifer).length,
       kinds: new Set(grown.map((t) => t.mood)).size,
     };
     forest.flowerSpots(trees, this.spots);

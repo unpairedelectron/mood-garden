@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { LIGHT } from './forest';
-import type { MoodDef, MoodId } from './moods';
+import { speciesOf, type SpeciesDef } from './moods';
 import type { TreeSave } from './state';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
@@ -28,14 +28,21 @@ interface Style {
   /** Card size in units of tree height. */
   card: number;
 }
-const STYLES: Record<MoodId, Style> = {
+const STYLES: Record<string, Style> = {
   joy: { bark: 'bark_willow_02', stems: 2, branches: 5, girth: 0.42, cards: 144, card: 0.15 },
   calm: { bark: 'bark_brown_02', stems: 1, branches: 5, girth: 0.5, cards: 128, card: 0.16 },
   love: { bark: 'bark_brown_02', stems: 1, branches: 6, girth: 0.45, cards: 160, card: 0.14 },
   hope: { bark: 'bark_brown_02', stems: 1, branches: 0, girth: 0.5, spire: true, cards: 96, card: 0.2 },
   courage: { bark: 'eucalyptus_bark', stems: 1, branches: 7, girth: 0.5, cards: 73, card: 0.17 },
   sorrow: { bark: 'bark_willow_02', stems: 5, branches: 0, girth: 0.3, cards: 144, card: 0.14 },
+  // Trees grown from found seeds.
+  pine: { bark: 'bark_brown_02', stems: 1, branches: 0, girth: 0.5, spire: true, cards: 100, card: 0.2 },
+  islandtree: { bark: 'bark_willow_02', stems: 2, branches: 6, girth: 0.42, cards: 150, card: 0.15 },
+  karee: { bark: 'bark_brown_02', stems: 4, branches: 0, girth: 0.3, cards: 140, card: 0.15 },
+  othonna: { bark: 'eucalyptus_bark', stems: 3, branches: 3, girth: 0.4, cards: 80, card: 0.2 },
+  oldquiver: { bark: 'eucalyptus_bark', stems: 1, branches: 8, girth: 0.5, cards: 80, card: 0.17 },
 };
+const styleOf = (id: string) => STYLES[id] ?? STYLES.calm;
 
 /** What the impostor views tell us, in units of the tree's height. */
 interface Profile {
@@ -452,7 +459,7 @@ interface Near {
 const NEAR_CAP = 24;
 
 export interface ImpostorSpecies {
-  def: MoodDef;
+  def: SpeciesDef;
   rot: THREE.InstancedBufferAttribute;
   posH: THREE.InstancedBufferAttribute;
   count: number;
@@ -464,7 +471,7 @@ export interface ImpostorSpecies {
 
 export class NearTrees {
   readonly group = new THREE.Group();
-  private near = new Map<MoodId, Near>();
+  private near = new Map<string, Near>();
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
@@ -476,9 +483,20 @@ export class NearTrees {
   /** How many trees may be drawn in full at once (up to NEAR_CAP); set from the quality tier. */
   cap = NEAR_CAP;
 
+  private barks = new Map<string, Promise<THREE.MeshStandardMaterial>>();
+  private maxAniso = 4;
+
   async load(species: ImpostorSpecies[], maxAniso: number) {
+    this.maxAniso = maxAniso;
+    await Promise.all(species.map((sp) => this.add(sp)));
+  }
+
+  /** Prepare the full-detail version of one kind of tree (also for kinds that load later). */
+  async add(sp: ImpostorSpecies) {
+    if (this.near.has(sp.def.id)) return;
     const tl = new THREE.TextureLoader();
-    const barks = new Map<string, Promise<THREE.MeshStandardMaterial>>();
+    const maxAniso = this.maxAniso;
+    const barks = this.barks;
     const barkMat = (name: string) => {
       let p = barks.get(name);
       if (!p) {
@@ -496,9 +514,9 @@ export class NearTrees {
       }
       return p;
     };
-    await Promise.all(
-      species.map(async (sp) => {
-        const st = STYLES[sp.def.id];
+    {
+      {
+        const st = styleOf(sp.def.id);
         const img = sp.albedo.image as HTMLImageElement;
         const profile = measure(img, sp.info) as Profile & { top: number };
         // A spindly conifer's silhouette is too ragged to trust for lean.
@@ -539,13 +557,13 @@ export class NearTrees {
           this.group.add(leaves);
         }
         this.near.set(sp.def.id, { wood, leaves, fade, woodFade, profile });
-      }),
-    );
+      }
+    }
   }
 
   /** Places on the outer canopy where a small bird could sit, in world space. */
   perches(t: TreeSave, H: number, groundY: number, n: number, seed: number): THREE.Vector3[] {
-    const n0 = this.near.get(t.mood);
+    const n0 = this.near.get(speciesOf(t).id);
     if (!n0) return [];
     const p = n0.profile;
     const r = mulberry(seed);

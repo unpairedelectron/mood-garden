@@ -4,12 +4,14 @@ import '@fontsource-variable/inter';
 import './style.css';
 import { AudioEngine } from './audio';
 import { Clock, dayNumber } from './clock';
-import { MOODS, MOOD_BY_ID, type MoodId } from './moods';
+import { MOODS, MOOD_BY_ID, SEED_SPECIES, SPECIES_BY_ID, speciesOf, type MoodId } from './moods';
 import { haptic, initNative, isNative, notificationsAllowed, reschedule, shareImage } from './native';
 import { applyAway, clearSave, loadSave, writeSave, MAX_TREES, type TreeSave } from './state';
 import { World } from './world';
 import { PLACES, placeById, type Place } from './terrain';
-import { drawMap, yearHtml } from './year';
+import { yearHtml } from './year';
+import { drawFieldMap } from './map';
+import { KEEPSAKES, whereabouts, type Keepsake } from './keepsakes';
 
 const save = loadSave();
 const isNew = save.trees.length === 0;
@@ -120,7 +122,7 @@ function caption(t: TreeSave | null) {
   }
   const def = MOOD_BY_ID[t.mood];
   const stage = t.growth >= 1 ? 'full grown' : t.growth >= 0.6 ? 'nearly grown' : t.growth >= 0.2 ? 'growing' : 'a sapling';
-  el.innerHTML = `<b style="color:${def.css}">${def.name}</b><span>${def.tree} · ${stage} · ${since(t.planted).toLowerCase()}</span>${t.note ? `<em>“${esc(t.note)}”</em>` : ''}`;
+  el.innerHTML = `<b style="color:${def.css}">${def.name}</b><span>${speciesOf(t).tree} · ${stage} · ${since(t.planted).toLowerCase()}</span>${t.note ? `<em>“${esc(t.note)}”</em>` : ''}`;
   el.classList.add('is-on');
 }
 
@@ -144,17 +146,80 @@ function met(id: string) {
 const pendingArrivals: string[] = [];
 
 /** First arrival somewhere: its name, quietly, and a phrase of music. Shown even while walking. */
+/** Quiet cards for names and finds, one at a time, each given its moment. */
 let placeTimer = 0;
-function found(p: Place) {
+const cards: { title: string; line: string; small: boolean; ms: number; cue: () => void }[] = [];
+function card(c: (typeof cards)[number]) {
+  cards.push(c);
+  if (cards.length === 1) showCard();
+}
+function showCard() {
+  const c = cards[0];
+  if (!c) return;
   const el = $('#place');
-  el.querySelector('em')!.textContent = p.name;
-  el.querySelector('span')!.textContent = p.line;
+  el.querySelector('em')!.textContent = c.title;
+  el.querySelector('span')!.textContent = c.line;
+  el.classList.toggle('is-small', c.small);
   el.classList.add('is-on');
-  audio.discover();
-  void haptic('soft');
+  c.cue();
   window.clearTimeout(placeTimer);
-  placeTimer = window.setTimeout(() => el.classList.remove('is-on'), 6500);
+  placeTimer = window.setTimeout(() => {
+    el.classList.remove('is-on');
+    cards.shift();
+    // Let one fade out before the next fades in.
+    window.setTimeout(showCard, 1900);
+  }, c.ms);
+}
+
+/** First arrival somewhere: its name, quietly, and a phrase of music. Shown even while walking. */
+function found(p: Place) {
+  card({ title: p.name, line: p.line, small: false, ms: 6500, cue: () => {
+    audio.discover();
+    void haptic('soft');
+  } });
   writeSave(save);
+}
+
+/** Seed kinds of tree you can now grow for a feeling. */
+function unlockedFor(mood: MoodId) {
+  return SEED_SPECIES.filter((s) => s.mood === mood && save.keepsakes?.[`seed-${s.id}`]);
+}
+
+/** Picking something up: a quiet card, like a place's name. */
+function keepsake(k: Keepsake) {
+  const s = k.species ? SPECIES_BY_ID[k.species] : null;
+  card({
+    title: k.name,
+    line: s ? `You can now grow a ${s.tree.toLowerCase()} when you feel ${MOOD_BY_ID[s.mood].name.toLowerCase()}.` : k.line,
+    small: true,
+    ms: 5500,
+    cue: () => {
+      audio.deliver(k.kind === 'seed' ? 5 : 2);
+      if (k.kind === 'seed') audio.discover();
+      void haptic(k.kind === 'seed' ? 'success' : 'soft');
+    },
+  });
+  writeSave(save);
+}
+
+function journalSheet() {
+  const got = save.keepsakes ?? {};
+  const group = (kind: Keepsake['kind'], title: string) => {
+    const all = KEEPSAKES.filter((k) => k.kind === kind);
+    const have = all.filter((k) => got[k.id]).sort((a, b) => got[a.id] - got[b.id]);
+    return `<h3>${title} <small>${have.length} of ${all.length}</small></h3>${have.length
+      ? `<ul class="finds">${have.map((k) => `<li class="find find--${kind}"><i></i><div><strong>${k.name}</strong><span>${k.species ? `Grows a ${SPECIES_BY_ID[k.species].tree.toLowerCase()} (${MOOD_BY_ID[SPECIES_BY_ID[k.species].mood].name})` : k.line}</span><time>${fmt.format(got[k.id])}, ${whereabouts(k.x, k.z)}</time></div></li>`).join('')}</ul>`
+      : `<p class="sheet__sub">${kind === 'seed' ? 'Each of the land’s places keeps one seed.' : 'None yet. Keep an eye out for something catching the light.'}</p>`}`;
+  };
+  openSheet(`
+    <h2>Field journal</h2>
+    <p class="sheet__sub">The land as you know it. It fills in where you walk.</p>
+    <div class="map map--paper"><canvas id="fieldMap" width="640" height="640"></canvas></div>
+    ${group('seed', 'Seeds')}
+    ${group('feather', 'Feathers')}
+    ${group('stone', 'Stones')}
+    ${group('flower', 'Pressed flowers')}`);
+  drawFieldMap(sheet.querySelector('#fieldMap') as HTMLCanvasElement, save.trees, world.explored, save.found ?? []);
 }
 
 function placesHtml(): string {
@@ -195,11 +260,13 @@ function plantSheet() {
     return;
   }
   let picked: MoodId | null = null;
+  let kind: string | null = null;
   openSheet(`
     <p class="sheet__kicker">${fmtLong.format(new Date())}</p>
     <h2>How are you, today?</h2>
     <p class="sheet__sub" id="moodSub">Choose the feeling closest to now. It grows into its own kind of tree, here, where you stand.</p>
     <div class="moods">${MOODS.map((m) => `<button class="mood" data-mood="${m.id}" style="--c:${m.css}"><i></i><span>${m.name}</span><small>${m.tree}</small></button>`).join('')}</div>
+    <div class="kinds" id="kinds"></div>
     <input id="note" maxlength="120" placeholder="A few words for your future self, if you like" autocomplete="off" />
     <button class="cta" id="doPlant" disabled>Choose a feeling</button>
     <p class="sheet__tip">One feeling, one tree, each day. Over a year it becomes a forest of how you have been.</p>`);
@@ -210,8 +277,22 @@ function plantSheet() {
     sheet.querySelectorAll('.mood').forEach((o) => o.classList.toggle('is-on', o === b));
     (sheet.querySelector('#moodSub') as HTMLElement).textContent = def.feeling;
     btn.disabled = false;
-    btn.textContent = `Plant a ${def.tree.toLowerCase()}`;
     btn.style.setProperty('--c', def.css);
+    // Seeds you have found let a feeling grow another kind of tree.
+    const kinds = [SPECIES_BY_ID[picked], ...unlockedFor(picked)];
+    kind = kinds[0].id;
+    const box = sheet.querySelector('#kinds') as HTMLElement;
+    const setKind = (id: string) => {
+      kind = id;
+      box.querySelectorAll('.chip').forEach((c) => c.classList.toggle('is-on', (c as HTMLElement).dataset.kind === id));
+      btn.textContent = `Plant a ${SPECIES_BY_ID[id].tree.toLowerCase()}`;
+    };
+    box.innerHTML = kinds.length > 1 ? kinds.map((k) => `<button class="chip" data-kind="${k.id}">${k.tree}</button>`).join('') : '';
+    box.querySelectorAll<HTMLElement>('.chip').forEach((c) => c.addEventListener('click', () => {
+      setKind(c.dataset.kind!);
+      void haptic('select');
+    }));
+    setKind(kind);
     audio.ui('click');
     void haptic('select');
   });
@@ -219,7 +300,7 @@ function plantSheet() {
     if (!picked) return;
     const note = (sheet.querySelector('#note') as HTMLInputElement).value;
     closeSheet();
-    if (world.plant(picked, note)) {
+    if (world.plant(picked, note, kind ?? undefined)) {
       save.lastPlantDay = today;
       void haptic('success');
       refresh();
@@ -235,7 +316,7 @@ function todaySheet() {
   openSheet(`
     <p class="sheet__kicker">${fmtLong.format(new Date())}</p>
     <h2>Today’s tree is planted</h2>
-    ${t && def ? `<div class="memcard" style="--c:${def.css}"><b>${def.name}</b><span>${def.tree} · ${Math.round(t.growth * 100)}% grown</span>${t.note ? `<em>“${esc(t.note)}”</em>` : ''}</div>` : ''}
+    ${t && def ? `<div class="memcard" style="--c:${def.css}"><b>${def.name}</b><span>${speciesOf(t).tree} · ${Math.round(t.growth * 100)}% grown</span>${t.note ? `<em>“${esc(t.note)}”</em>` : ''}</div>` : ''}
     <p class="sheet__sub">One feeling, one tree each day. Come back tomorrow and tell the grove how you are.</p>
     <div class="row">${t ? '<button class="ghost" id="goToday">Walk to it</button>' : ''}<button class="ghost" id="closeToday">Close</button></div>`);
   sheet.querySelector('#goToday')?.addEventListener('click', () => {
@@ -255,6 +336,7 @@ function menuSheet() {
     <div class="stats"><div><b>${save.trees.length}</b>planted</div><div><b>${grown}</b>grown</div><div><b>${(save.visits ?? []).length}</b>days visited</div></div>
     <div class="cta-row">
       <button class="cta cta--soft" id="yearBtn">Year in feelings</button>
+      <button class="cta cta--soft" id="journalBtn">Field journal</button>
       <button class="cta cta--soft" id="walkBtn">Memory walk</button>
     </div>
     ${world.fromHome > 80 ? '<button class="ghost ghost--home" id="homeBtn">Walk me home</button>' : ''}
@@ -283,6 +365,7 @@ function menuSheet() {
     <p class="credit">Trees, plants, rocks, bark, ground and skies are CC0 scans from Poly Haven.</p>`);
   sheet.querySelector('#yearBtn')!.addEventListener('click', () => yearSheet(new Date().getFullYear()));
   sheet.querySelector('#walkBtn')!.addEventListener('click', walkSheet);
+  sheet.querySelector('#journalBtn')!.addEventListener('click', journalSheet);
   on('[data-place]', (b) => {
     const p = placeById(b.dataset.place!);
     closeSheet();
@@ -363,7 +446,7 @@ function yearSheet(year: number) {
   cal.scrollLeft = Math.max(0, cal.scrollWidth * through - cal.clientWidth * 0.8);
   const cv = sheet.querySelector('#groveMap') as HTMLCanvasElement;
   const inYear = new Set(save.trees.filter((t) => new Date(t.planted).getFullYear() === year).map((t) => t.id));
-  const hit = drawMap(cv, save.trees, world.paths, world.whereabouts, inYear);
+  const hit = drawFieldMap(cv, save.trees, world.explored, save.found ?? [], inYear);
   const pick = (t: TreeSave | null) => {
     const el = sheet.querySelector('#pick') as HTMLElement;
     if (!t) return;
@@ -579,8 +662,8 @@ $('#photoClose').addEventListener('click', () => photoMode(false));
 
 // -------------------------------------------------------------------- boot
 const clock = new Clock();
-const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, clock, { toast, change: refresh, caption, met, found });
-if (import.meta.env.DEV) Object.assign(window as unknown as Record<string, unknown>, { __world: world, __ui: { tour, walkHome, walkTo, found, yearSheet, walkSheet, plantSheet, menuSheet, photoMode, offerAnniversary } });
+const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, clock, { toast, change: refresh, caption, met, found, keepsake });
+if (import.meta.env.DEV) Object.assign(window as unknown as Record<string, unknown>, { __world: world, __ui: { tour, walkHome, walkTo, found, keepsake, journalSheet, yearSheet, walkSheet, plantSheet, menuSheet, photoMode, offerAnniversary } });
 
 const native = initNative({
   pause: () => {
@@ -609,8 +692,6 @@ const native = initNative({
       // Anything that happened on the way, now you have stopped.
       held.splice(0).forEach((t) => toast(t));
     }
-    // Planting happens in the home clearing; elsewhere the button is not needed.
-    $('#plantBtn').classList.toggle('is-away', !world.inClearing);
   }, 250);
 }
 
