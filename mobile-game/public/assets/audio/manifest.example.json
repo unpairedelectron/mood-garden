@@ -11,6 +11,9 @@
     "pond": ["beds/pond_01.m4a"],
     "snow": ["beds/winter_quiet_01.m4a"]
   },
+  "sources": {
+    "waterfall": ["sources/waterfall_01.m4a"]
+  },
   "birds": {
     "robin": { "files": ["birds/robin_01.m4a", "birds/robin_02.m4a", "birds/robin_03.m4a"], "hours": [[4.5, 10.5], [15.5, 21]], "gain": 0.8 },
     "blackbird": { "files": ["birds/blackbird_01.m4a", "birds/blackbird_02.m4a"], "hours": [[4, 9], [17, 21.5]], "gain": 0.9, "seasons": ["spring", "summer"] },

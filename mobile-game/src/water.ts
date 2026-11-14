@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { LIGHT } from './forest';
 import type { Sky } from './sky';
-import { POND, WORLD, stream, STREAM_WIDTH } from './terrain';
+import { POND, WORLD, stream, streamHalf } from './terrain';
 
 const VERT = /* glsl */ `
 attribute vec2 aFlow;
@@ -152,7 +152,6 @@ export class Water {
 
     // Stream: a ribbon along its course, carrying the flow direction.
     const pos: number[] = [], flow: number[] = [], edge: number[] = [], idx: number[] = [];
-    const half = STREAM_WIDTH * 0.5 + 0.5;
     for (let i = 0; i < stream.length; i++) {
       const a = stream[Math.max(0, i - 1)], b = stream[Math.min(stream.length - 1, i + 1)];
       let dx = b.x - a.x, dz = b.z - a.z;
@@ -160,6 +159,7 @@ export class Water {
       dx /= l;
       dz /= l;
       const p = stream[i];
+      const half = streamHalf(p.s) + 0.5;
       for (const side of [-1, -0.5, 0, 0.5, 1]) {
         pos.push(p.x - dz * half * side, p.y, p.z + dx * half * side);
         flow.push(dx, dz);

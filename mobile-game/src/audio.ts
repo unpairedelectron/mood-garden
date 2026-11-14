@@ -26,6 +26,10 @@ export interface Ambience {
   pond: number;
   /** 0..1 how much canopy is overhead and around. */
   canopy: number;
+  /** 0..1 how deep in the woods you are: they are hushed. */
+  woods: number;
+  /** 0..1 how much of a view there is from here. */
+  view: number;
   speed: number;
   life: number;
   season: string;
@@ -33,6 +37,10 @@ export interface Ambience {
 
 type Song = 'robin' | 'bluetit' | 'goldfinch' | 'blackbird' | 'woodpigeon' | 'owl';
 
+const THREE_SMOOTH = (a: number, b: number, x: number) => {
+  const k = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return k * k * (3 - 2 * k);
+};
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 // D major: D – Bm7 – Gmaj7 – Asus
 const CHORDS = [
@@ -83,6 +91,11 @@ export class AudioEngine {
   private brook: { gain: GainNode; bands: BiquadFilterNode[] } | null = null;
   private pondLap!: GainNode;
   private dripIn = 0;
+  private sources: { kind: 'waterfall'; at: { x: number; y: number; z: number } }[] = [];
+  private walkT = 0;
+  private inVista = false;
+  private lastCue = -999;
+  private swell = 0;
   private owlIn = 30;
 
   get ready() {
@@ -190,11 +203,63 @@ export class AudioEngine {
     void this.samples.load().then(() => this.startRecordings());
   }
 
+  /** A sound that lives at a place in the world, such as the falls. Safe to call before start(). */
+  addSource(kind: 'waterfall', at: { x: number; y: number; z: number }) {
+    this.sources.push({ kind, at: { x: at.x, y: at.y, z: at.z } });
+  }
+
+  private async startSource(kind: 'waterfall', at: { x: number; y: number; z: number }) {
+    const ctx = this.ctx!;
+    const p = ctx.createPanner();
+    p.panningModel = 'HRTF';
+    // Heard from well over a hundred metres away, faintly, so it can be followed.
+    p.distanceModel = 'inverse';
+    p.refDistance = 10;
+    p.rolloffFactor = 0.9;
+    p.maxDistance = 600;
+    if (p.positionX) {
+      p.positionX.value = at.x;
+      p.positionY.value = at.y;
+      p.positionZ.value = at.z;
+    } else (p as unknown as { setPosition: (x: number, y: number, z: number) => void }).setPosition(at.x, at.y, at.z);
+    p.connect(this.master);
+    const rec = this.samples?.manifest.sources?.[kind];
+    const buf = rec?.length ? await this.samples!.prime(rec[0]) : null;
+    if (buf) {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const g = ctx.createGain();
+      g.gain.value = 0.9;
+      src.connect(g).connect(p);
+      src.start(0, Math.random() * buf.duration);
+      return;
+    }
+    // Synthesised falls: a broad body of water, a bright hiss of spray and a low rumble.
+    const layer = (type: BiquadFilterType, f: number, q: number, v: number) => {
+      const s = ctx.createBufferSource();
+      s.buffer = this.noise;
+      s.loop = true;
+      const fl = ctx.createBiquadFilter();
+      fl.type = type;
+      fl.frequency.value = f;
+      fl.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.value = v;
+      s.connect(fl).connect(g).connect(p);
+      s.start(0, Math.random() * 2);
+    };
+    layer('lowpass', 1400, 0.4, 0.32);
+    layer('highpass', 3200, 0.5, 0.08);
+    layer('lowpass', 180, 0.7, 0.4);
+  }
+
   /** Start looping beds and score stems that are installed. */
   private async startRecordings() {
     const ctx = this.ctx!;
     const sm = this.samples!;
     const m = sm.manifest;
+    for (const s of this.sources) void this.startSource(s.kind, s.at);
     for (const [id, files] of Object.entries(m.beds ?? {}) as [BedId, string[]][]) {
       if (!files?.length) continue;
       const buf = await sm.prime(files[Math.floor(Math.random() * files.length)]);
@@ -465,10 +530,23 @@ export class AudioEngine {
     const hasPond = this.bedLevel('pond', w.pond * 0.6, t, 0.8);
     this.bedLevel('snow', w.snow * 0.5, t, 3);
 
+    // Music steps back while you walk and returns when you stop; it rises with a view.
+    this.walkT = w.speed > 0.4 ? this.walkT + dt : Math.max(0, this.walkT - dt * 1.5);
+    const walking = 1 - THREE_SMOOTH(5, 16, this.walkT) * 0.85;
+    this.swell = Math.max(0, this.swell - dt * 0.04);
+    const music = this.volMusic * 0.9 * Math.max(walking, this.swell) * (1 + w.view * 0.35) * (1 - w.woods * 0.25);
+    this.musicBus.gain.setTargetAtTime(music, t, 2.5);
+    if (w.view > 0.6 && !this.inVista) {
+      this.inVista = true;
+      if (t - this.lastCue > 90) this.vista();
+    } else if (w.view < 0.3) this.inVista = false;
+
     // Synthesised wind, canopy rustle, rain, stream and pond where no recording is installed.
-    const windLvl = hasWindBed ? 0.01 : (0.03 + gust * 0.035) * windAmt + (1 - w.life) * 0.02 + Math.min(w.speed, 10) * 0.002;
-    this.wind.gain.gain.setTargetAtTime(windLvl, t, 0.4);
-    this.wind.filter.frequency.setTargetAtTime(300 + gust * 420 * windAmt, t, 0.5);
+    // Deep in the woods the wind drops and everything sounds closer and softer.
+    const hush = 1 - w.woods * 0.55;
+    const windLvl = (hasWindBed ? 0.01 : (0.03 + gust * 0.035) * windAmt + (1 - w.life) * 0.02 + Math.min(w.speed, 10) * 0.002) * hush;
+    this.wind.gain.gain.setTargetAtTime(windLvl, t, 0.8);
+    this.wind.filter.frequency.setTargetAtTime((300 + gust * 420 * windAmt) * (1 - w.woods * 0.35), t, 0.8);
     const rustle = hasWindBed ? 0 : w.canopy * (0.004 + gust * gust * 0.03) * windAmt * (w.season === 'winter' ? 0.4 : 1);
     this.canopy.gain.gain.setTargetAtTime(rustle, t, 0.25);
     this.canopy.filter.frequency.setTargetAtTime(2200 + gust * 1800, t, 0.3);
@@ -501,7 +579,7 @@ export class AudioEngine {
     // Birds in the distance: a dawn chorus, quieter by day, an owl at night.
     this.chirpIn -= dt;
     if (this.chirpIn <= 0) {
-      const chorus = w.dawn * 0.85 + w.day * 0.25 + w.dusk * 0.3;
+      const chorus = (w.dawn * 0.85 + w.day * 0.25 + w.dusk * 0.3) * (1 - w.woods * 0.45);
       this.chirpIn = 0.35 + (1 - chorus) * 5 + Math.random() * 2;
       if (w.day > 0.2 && w.vitality > 0.3 && w.rain < 0.4 && Math.random() < 0.3 + chorus) this.distantBird(w);
     }
@@ -709,6 +787,25 @@ export class AudioEngine {
     }
     this.noiseHit(out, t + 0.2, 5.5, 0.05, 'bandpass', 300, 5200, 0.7);
   }
+  /** Finding a place: a rising phrase over a soft chord, and the music comes back in. */
+  discover() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.lastCue = t;
+    this.swell = 1;
+    [0, 2, 4, 5, 7].forEach((k, i) => this.bell(this.reverb, PENTA[k] + 12, t + 0.4 + i * 0.32, 0.07, 3.2));
+    for (const n of [50, 57, 62, 66]) this.tone(this.reverb, 'sine', mtof(n), t, 5, 0.035, 2.2, 3.5);
+  }
+  /** A view opens up: a wide, slow chord. */
+  vista() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.lastCue = t;
+    this.swell = 0.9;
+    for (const [i, n] of [38, 45, 50, 57, 62, 69].entries()) this.tone(this.reverb, 'sine', mtof(n), t + i * 0.45, 7 - i * 0.4, 0.03, 2.6, 4);
+    this.bell(this.reverb, 81, t + 2.8, 0.05, 4);
+  }
+
   plantFeeling() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;

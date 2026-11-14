@@ -37,6 +37,8 @@ export interface Save {
   visits?: number[];
   /** Anniversary days already pointed out, so each is only offered once. */
   remembered?: number[];
+  /** Places you have found (see terrain.PLACES). */
+  found?: string[];
   /** Daily reminder hour (local), or null for none. */
   remindAt?: number | null;
 }

@@ -6,7 +6,7 @@
 // give way to it.
 
 import * as THREE from 'three';
-import { WORLD, pondShape, streamNearest, STREAM_WIDTH } from './terrain';
+import { WORLD, pondShape, streamHalf, streamNearest } from './terrain';
 
 /** Path grid cells across the world (2 m each). */
 const P = 128;
@@ -30,7 +30,7 @@ export class Paths {
         let w = Math.min(1, Math.max(0, pondShape(x, z) * 8 + 0.4));
         if (x < -8 && x > -130 && z > -75 && z < 35) {
           const sn = streamNearest(x, z);
-          w = Math.max(w, Math.min(1, Math.max(0, (STREAM_WIDTH * 0.5 + 0.6 - sn.d) / 1.2)));
+          w = Math.max(w, Math.min(1, Math.max(0, (streamHalf(sn.s) + 0.6 - sn.d) / 1.2)));
         }
         this.data[(j * M + i) * 4 + 1] = Math.round(w * 255);
       }

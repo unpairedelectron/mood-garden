@@ -27,6 +27,10 @@ and runs as a web app.
    to the south-east gives a view over the grove. Beyond the clearing, about 1.5 km of wild forest — deep woods,
    glades, valleys and ridges — runs out to mountains too steep to climb. There is no map; if you lose your
    way, **Menu → Walk me home** brings you back to the clearing.
+   Out there are places to find — the Falls where the stream rises, the Old One (an ancient tree above the
+   canopy), a Ruin in the deep woods, Flower Meadow and Sunset Ridge — each named quietly the first time you
+   arrive, then listed in the menu so you can walk back. You hear the falls long before you see them; the
+   deep woods are hushed; the music steps back while you walk and rises when a view opens or you find a place.
 7. **The screen gets out of the way.** While you walk, the HUD fades and messages wait until you stop. The
    Plant button only appears in the home clearing, where trees are planted.
 

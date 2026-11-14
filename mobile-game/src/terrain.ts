@@ -83,6 +83,11 @@ export function forestDensity(x: number, z: number): number {
   d = Math.max(d, smooth(RIM - 40, RIM + 40, r) * 0.9);
   // The home clearing stays open, its edge feathered.
   d *= smooth(58, 84, r);
+  // Places keep their own glades.
+  for (const p of GLADES) d *= smooth(p.r * 0.6, p.r * 1.35, Math.hypot(x - p.x, z - p.z));
+  // The ridge's crest is open heath.
+  const q = ridgeQ(x, z);
+  if (q < 0.45) d *= smooth(0.2, 0.45, q);
   return d;
 }
 
@@ -95,6 +100,13 @@ const STREAM_PTS: [number, number][] = [
   [-112, -58], [-96, -50], [-84, -34], [-70, -30], [-60, -16], [-50, -8], [-44, 4], [-36, 10], [-30, 15],
 ];
 export const STREAM_WIDTH = 2.6;
+/** Half the stream's width at distance s from its source: a plunge pool where it rises. */
+export function streamHalf(s: number): number {
+  return STREAM_WIDTH * 0.5 + 1.7 * (1 - smooth(0, 11, s));
+}
+
+/** Sunset Ridge: a long ridge to the west, its crest open to the evening sky. */
+export const RIDGE = { x: -330, z: 110, width: 110, length: 170, height: 22 };
 
 export interface StreamPoint {
   x: number;
@@ -136,6 +148,43 @@ export const stream: StreamPoint[] = [];
   }
 }
 
+/** Where the stream rises, and the rock face it falls from. Lip height is filled in once the land exists. */
+export const FALLS = { sx: 0, sz: 0, dx: 1, dz: 0, drop: 8.5, waterY: 0, lipX: 0, lipY: 0, lipZ: 0, ready: false };
+{
+  const a = stream[0], b = stream[4];
+  const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  Object.assign(FALLS, { sx: a.x, sz: a.z, dx: (b.x - a.x) / l, dz: (b.z - a.z) / l, waterY: a.y, ready: true });
+}
+
+/** 0 at the ridge's crest, 1 at its foot (an elongated dome running north–south). */
+export function ridgeQ(x: number, z: number): number {
+  return Math.hypot((x - RIDGE.x) / (RIDGE.width / 2), (z - RIDGE.z) / (RIDGE.length / 2));
+}
+
+export interface Place {
+  id: string;
+  name: string;
+  /** One quiet line shown with the name the first time you arrive. */
+  line: string;
+  x: number;
+  z: number;
+  /** How close counts as arriving. */
+  r: number;
+  /** Radius of open ground kept around it in the woods (0 for none). */
+  glade: number;
+}
+export const PLACES: Place[] = [
+  { id: 'pond', name: 'The Pond', line: 'Still water, and the sky in it.', x: -26, z: 20, r: 15, glade: 0 },
+  { id: 'hill', name: 'Lookout Hill', line: 'The whole grove from one place.', x: HILL.x, z: HILL.z, r: 7, glade: 0 },
+  { id: 'falls', name: 'The Falls', line: 'Where the stream begins.', x: FALLS.sx, z: FALLS.sz, r: 14, glade: 0 },
+  { id: 'oldone', name: 'The Old One', line: 'It was here long before the grove.', x: 215, z: 150, r: 18, glade: 24 },
+  { id: 'ruin', name: 'The Ruin', line: 'Someone lived here, once.', x: -150, z: -300, r: 11, glade: 11 },
+  { id: 'meadow', name: 'Flower Meadow', line: 'Open sky, after the trees.', x: 160, z: -280, r: 32, glade: 50 },
+  { id: 'ridge', name: 'Sunset Ridge', line: 'Facing west, where the day ends.', x: RIDGE.x - 6, z: RIDGE.z, r: 14, glade: 0 },
+];
+const GLADES = PLACES.filter((p) => p.glade > 0).map((p) => ({ x: p.x, z: p.z, r: p.glade }));
+export const placeById = (id: string) => PLACES.find((p) => p.id === id)!;
+
 /** Nearest point on the stream: distance, surface height and distance along it. */
 export function streamNearest(x: number, z: number): { d: number; y: number; s: number } {
   let best = Infinity, by = 0, bs = 0;
@@ -176,13 +225,28 @@ function shapedHeight(x: number, z: number): number {
   // Stream: a channel with soft banks, its bed below the running water.
   if (Math.abs(x - -70) < 60 && Math.abs(z - -20) < 52) {
     const sn = streamNearest(x, z);
-    const half = STREAM_WIDTH * 0.5;
+    const half = streamHalf(sn.s);
     if (sn.d < half + 6) {
       const bed = sn.y - 0.45 * (1 - smooth(0, half, sn.d) * 0.7);
       const bank = smooth(half * 0.6, half + 5, sn.d);
       h = Math.min(h, bed * (1 - bank) + h * bank);
     }
   }
+  // The Falls: a rock face rises behind the stream's source, and the water pours over it.
+  if (FALLS.ready) {
+    const rx = x - FALLS.sx, rz = z - FALLS.sz;
+    const up = -(rx * FALLS.dx + rz * FALLS.dz);
+    const side = Math.abs(rx * FALLS.dz - rz * FALLS.dx);
+    if (up > 0.4 && side < 34) {
+      const lip = smooth(0.4, 2.8, up) * (1 - smooth(9, 30, side));
+      // A craggy face, rising a little further back.
+      const crag = (vnoise(x * 0.4, z * 0.4) - 0.5) * 0.8 + smooth(3, 40, up) * 5;
+      h += (FALLS.drop + crag) * lip;
+    }
+  }
+  // Sunset Ridge.
+  const q = ridgeQ(x, z);
+  if (q < 1) h += RIDGE.height * Math.pow(Math.cos(q * Math.PI * 0.5), 1.3);
   // Pond: a basin under the water, with a shelving shore.
   const ps = pondShape(x, z);
   if (ps > -0.35) {
@@ -205,6 +269,11 @@ for (let j = 0; j <= G; j++) {
   }
 }
 
+{
+  const lx = FALLS.sx - FALLS.dx * 3.2, lz = FALLS.sz - FALLS.dz * 3.2;
+  Object.assign(FALLS, { lipX: lx, lipZ: lz, lipY: shapedHeight(lx, lz) });
+}
+
 export function heightAt(x: number, z: number): number {
   // Out in the wider land, the shape is cheap enough to compute directly.
   if (Math.abs(x) > WORLD * 0.5 - 1 || Math.abs(z) > WORLD * 0.5 - 1) return shapedHeight(x, z);
@@ -222,7 +291,7 @@ export function waterAt(x: number, z: number): number | null {
   if (pondShape(x, z) > -0.05) return POND.level;
   if (Math.abs(x - -70) < 60 && Math.abs(z - -20) < 52) {
     const sn = streamNearest(x, z);
-    if (sn.d < STREAM_WIDTH * 0.5 + 0.3) return sn.y;
+    if (sn.d < streamHalf(sn.s) + 0.3) return sn.y;
   }
   return null;
 }

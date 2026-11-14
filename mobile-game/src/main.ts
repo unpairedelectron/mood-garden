@@ -8,6 +8,7 @@ import { MOODS, MOOD_BY_ID, type MoodId } from './moods';
 import { haptic, initNative, isNative, notificationsAllowed, reschedule, shareImage } from './native';
 import { applyAway, clearSave, loadSave, writeSave, MAX_TREES, type TreeSave } from './state';
 import { World } from './world';
+import { PLACES, placeById, type Place } from './terrain';
 import { drawMap, yearHtml } from './year';
 
 const save = loadSave();
@@ -50,6 +51,7 @@ ui.innerHTML = `
   <div class="coach" id="coach"></div>
   <div class="caption" id="caption"></div>
   <div class="memory" id="memory"></div>
+  <div class="place" id="place"><em></em><span></span></div>
   <div class="toast" id="toast"></div>
   <div class="stick" id="stick"><div class="stick__knob" id="knob"></div></div>
   <button class="plant" id="plantBtn"><i class="leaf"></i><span id="plantLabel">Plant</span></button>
@@ -140,6 +142,29 @@ function met(id: string) {
   else pendingArrivals.push(id);
 }
 const pendingArrivals: string[] = [];
+
+/** First arrival somewhere: its name, quietly, and a phrase of music. Shown even while walking. */
+let placeTimer = 0;
+function found(p: Place) {
+  const el = $('#place');
+  el.querySelector('em')!.textContent = p.name;
+  el.querySelector('span')!.textContent = p.line;
+  el.classList.add('is-on');
+  audio.discover();
+  void haptic('soft');
+  window.clearTimeout(placeTimer);
+  placeTimer = window.setTimeout(() => el.classList.remove('is-on'), 6500);
+  writeSave(save);
+}
+
+function placesHtml(): string {
+  const have = PLACES.filter((p) => save.found?.includes(p.id));
+  const more = PLACES.length - have.length;
+  if (!have.length) return '<p class="sheet__sub">None yet. There is more out in the woods than trees.</p>';
+  return `<ul class="places">${have
+    .map((p) => `<li><div><strong>${p.name}</strong><span>${p.line}</span></div><button class="link" data-place="${p.id}">Walk there</button></li>`)
+    .join('')}</ul>${more ? `<p class="sheet__tip">${more === 1 ? 'One more place is' : 'More places are'} still out there.</p>` : ''}`;
+}
 
 // ------------------------------------------------------------------ sheets
 const sheet = $('#sheet');
@@ -233,6 +258,8 @@ function menuSheet() {
       <button class="cta cta--soft" id="walkBtn">Memory walk</button>
     </div>
     ${world.fromHome > 80 ? '<button class="ghost ghost--home" id="homeBtn">Walk me home</button>' : ''}
+    <h3>Places you’ve found</h3>
+    ${placesHtml()}
     <h3>Who lives here</h3>
     <ul class="goals">${life.filter((c) => !c.hidden).map((c) => `<li class="${c.here ? 'is-done' : ''}"><i></i><div><strong>${c.name}</strong><span>${c.here ? 'Living in your grove' : c.needs}</span></div></li>`).join('')}</ul>
     <p class="sheet__tip">Nothing here is placed by hand. Ferns, flowers and creatures arrive on their own as your trees grow.</p>
@@ -256,6 +283,11 @@ function menuSheet() {
     <p class="credit">Trees, plants, rocks, bark, ground and skies are CC0 scans from Poly Haven.</p>`);
   sheet.querySelector('#yearBtn')!.addEventListener('click', () => yearSheet(new Date().getFullYear()));
   sheet.querySelector('#walkBtn')!.addEventListener('click', walkSheet);
+  on('[data-place]', (b) => {
+    const p = placeById(b.dataset.place!);
+    closeSheet();
+    walkTo(p.x, p.z, `Walking to ${p.name}…`, p.name);
+  });
   sheet.querySelector('#homeBtn')?.addEventListener('click', () => {
     closeSheet();
     walkHome();
@@ -381,9 +413,14 @@ function walkSheet() {
 const memory = $('#memory');
 /** Lost in the woods: the grove walks you back to the clearing. */
 function walkHome() {
-  const home: TreeSave = { id: 0, mood: 'calm', note: '', planted: Date.now(), x: 0, z: 6, rot: 0, growth: 0 };
+  walkTo(0, 6, 'Heading home through the woods…', 'Home in the clearing.');
+}
+
+/** Walk somewhere by yourself, guided: home, or a place you have found before. */
+function walkTo(x: number, z: number, lead: string, arrived: string) {
+  const home: TreeSave = { id: 0, mood: 'calm', note: '', planted: Date.now(), x, z, rot: 0, growth: 0 };
   ui.classList.add('is-touring');
-  memory.innerHTML = `<p class="memory__lead">Heading home through the woods…</p><div class="row"><button class="ghost" data-end>Stop here</button></div>`;
+  memory.innerHTML = `<p class="memory__lead">${esc(lead)}</p><div class="row"><button class="ghost" data-end>Stop here</button></div>`;
   memory.classList.add('is-on');
   memory.querySelector('[data-end]')!.addEventListener('click', () => world.endTour(true));
   world.startTour(
@@ -392,7 +429,7 @@ function walkHome() {
     (interrupted) => {
       ui.classList.remove('is-touring');
       memory.classList.remove('is-on');
-      if (!interrupted) toast('Home in the clearing.', true);
+      if (!interrupted) toast(arrived, true);
       refresh();
     },
   );
@@ -542,8 +579,8 @@ $('#photoClose').addEventListener('click', () => photoMode(false));
 
 // -------------------------------------------------------------------- boot
 const clock = new Clock();
-const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, clock, { toast, change: refresh, caption, met });
-if (import.meta.env.DEV) Object.assign(window as unknown as Record<string, unknown>, { __world: world, __ui: { tour, walkHome, yearSheet, walkSheet, plantSheet, menuSheet, photoMode, offerAnniversary } });
+const world = new World(document.getElementById('scene') as HTMLCanvasElement, save, audio, clock, { toast, change: refresh, caption, met, found });
+if (import.meta.env.DEV) Object.assign(window as unknown as Record<string, unknown>, { __world: world, __ui: { tour, walkHome, walkTo, found, yearSheet, walkSheet, plantSheet, menuSheet, photoMode, offerAnniversary } });
 
 const native = initNative({
   pause: () => {

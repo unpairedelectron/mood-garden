@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { MOODS, MOOD_BY_ID, type MoodDef, type MoodId } from './moods';
 import type { TreeSave } from './state';
-import { HILL, LAND, LAND_LIMIT, LocalHeight, WORLD, forestDensity, heightAt, waterAt } from './terrain';
+import { FALLS, HILL, LAND, LAND_LIMIT, LocalHeight, RIDGE, WORLD, forestDensity, heightAt, placeById, waterAt } from './terrain';
 
 const ASSETS = `${import.meta.env.BASE_URL}assets/`;
 
@@ -337,11 +337,11 @@ export class Forest {
       ['shrub_03', 2, 520, true, 0.95],
       ['shrub_02', 1, 300, true, 1.2],
       ['shrub_04', 1, 300, true, 1.0],
-      ['flower_gazania', 2, 700, false, 0.3],
-      ['dandelion_01', 2, 700, false, 0.28],
+      ['flower_gazania', 2, 1800, false, 0.3],
+      ['dandelion_01', 2, 1800, false, 0.28],
       ['periwinkle_plant', 2, 700, false, 0.45],
-      ['rock_moss_set_01', 3, 120, true, 1.1],
-      ['rock_07', 1, 80, true, 1.6],
+      ['rock_moss_set_01', 3, 160, true, 1.1],
+      ['rock_07', 1, 120, true, 1.6],
       ['tree_stump_01', 1, 40, true, 0.8],
     ];
     await Promise.all(
@@ -458,6 +458,11 @@ export class Forest {
            // Deep woods: little grass grows in the shade, ferns and leaf litter take over.
            float wood = texture2D(uForest, wxz / ${LAND.toFixed(1)} + .5).r;
            gFade *= 1. - smoothstep(.3, .85, wood) * .88;
+           // Nothing grows on rock faces.
+           vec2 hu = (wxz - uHeightOrigin) / ${LocalHeight.SIZE.toFixed(1)} + .5;
+           float dhx = texture2D(uHeight, hu + vec2(1. / ${LocalHeight.SIZE.toFixed(1)}, 0.)).r - gy;
+           float dhz = texture2D(uHeight, hu + vec2(0., 1. / ${LocalHeight.SIZE.toFixed(1)})).r - gy;
+           gFade *= 1. - smoothstep(.75, 1.2, length(vec2(dhx, dhz)));
            transformed *= gFade;
            float bend = pow(clamp(position.y / uGrassH, 0., 1.), 2.);
            vBend = bend;
@@ -562,8 +567,73 @@ export class Forest {
     // A broad flat rock on the hilltop to sit on and look out over the grove.
     this.put('rock_07', 0, HILL.x + 0.6, HILL.z - 0.4, 2.2, 0.8, 0, 0.35);
     this.put('rock_moss_set_01', 1, HILL.x - 2.5, HILL.z + 1.8, 1.4, 2.1, 0.1, 0.12);
-    this.sceneryMark();
     this.growWilds();
+    this.buildPlaces();
+    this.sceneryMark();
+  }
+
+  /** Trees that belong to a place and are always drawn, wherever you are. */
+  private landmarks: TreeSave[] = [];
+
+  /** The places' own trees and stones. */
+  private buildPlaces() {
+    const r = rnd(777);
+    const tree = (id: number, mood: MoodId, x: number, z: number, size: number, rot = r() * 6.28) =>
+      this.landmarks.push({ id, mood, note: '', planted: 0, x, z, rot, growth: 1, size, y: heightAt(x, z) });
+    // The Old One: an ancient broadleaf that stands far above the canopy, with a few elders near it.
+    const old = placeById('oldone');
+    tree(-900001, 'joy', old.x, old.z, 3.1, 0.6);
+    for (let i = 0; i < 4; i++) {
+      const a = i * 1.7 + 0.4, d = 17 + r() * 4;
+      tree(-900010 - i, i % 2 ? 'calm' : 'joy', old.x + Math.cos(a) * d, old.z + Math.sin(a) * d, 1.5 + r() * 0.4);
+    }
+    for (let i = 0; i < 9; i++) {
+      const a = r() * 6.28, d = 4 + r() * 9;
+      this.put('fern_02', i, old.x + Math.cos(a) * d, old.z + Math.sin(a) * d, 1.1 + r() * 0.7, r() * 6.28);
+    }
+    // Sunset Ridge: a lone quiver tree on the crest and a flat stone facing west.
+    const ridge = placeById('ridge');
+    tree(-900020, 'courage', RIDGE.x + 4, RIDGE.z - 7, 1.4);
+    this.put('rock_07', 0, ridge.x, ridge.z, 2.3, Math.PI * 0.5, 0, 0.35);
+    this.put('rock_moss_set_01', 2, ridge.x + 3, ridge.z + 3, 1.2, 1.2, 0.1, 0.12);
+    // The Falls: boulders flank the pool and the lip.
+    {
+      const f = placeById('falls');
+      // Positions across (s) and upstream (up) of the source, in metres.
+      const side = (s: number, up: number) => [f.x - FALLS.dx * up - FALLS.dz * s, f.z - FALLS.dz * up + FALLS.dx * s] as const;
+      // At the foot of the face either side of the pool, and up on top beside the lip.
+      for (const [s, up, sc] of [[-4.4, 0, 2.2], [4.6, -0.3, 2], [-6.5, 0.4, 2.8], [6.8, 0.2, 2.6], [-3.2, -2.2, 1.3], [3.4, -2.6, 1.1], [-4.5, 7.5, 2.6], [4.8, 8, 2.4]] as const) {
+        const [x, z] = side(s, up);
+        this.put(sc > 2 ? 'rock_07' : 'rock_moss_set_01', Math.round(sc * 3), x, z, sc, r() * 6.28, (r() - 0.5) * 0.2, 0.3);
+      }
+    }
+    // The Ruin: the footing of a small stone house, a doorway gap on the south side, some stones fallen.
+    const ru = placeById('ruin');
+    const W = 9, D = 6.5;
+    const edge = (x0: number, z0: number, x1: number, z1: number, gapAt = -1) => {
+      const n = Math.round(Math.hypot(x1 - x0, z1 - z0) / 0.85);
+      const yaw = Math.atan2(x1 - x0, z1 - z0);
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        if (gapAt >= 0 && Math.abs(t - gapAt) < 0.12) continue;
+        // A stretch here and there has fallen.
+        const fallen = Math.sin(t * 9 + x0) > 0.75;
+        const x = ru.x + x0 + (x1 - x0) * t + (r() - 0.5) * 0.15, z = ru.z + z0 + (z1 - z0) * t + (r() - 0.5) * 0.15;
+        this.put('rock_07', i, x, z, 0.85 + r() * 0.35, yaw + (r() - 0.5) * 0.4, (r() - 0.5) * 0.12, 0.2);
+        // A second course of stones on top where the wall still stands.
+        if (!fallen && r() < 0.8) this.put('rock_moss_set_01', i, x, z, 0.7 + r() * 0.3, yaw + (r() - 0.5) * 0.6, (r() - 0.5) * 0.15, -0.55);
+      }
+    };
+    edge(-W / 2, -D / 2, W / 2, -D / 2, 0.5);
+    edge(W / 2, -D / 2, W / 2, D / 2);
+    edge(W / 2, D / 2, -W / 2, D / 2);
+    edge(-W / 2, D / 2, -W / 2, -D / 2);
+    // Tumbled stones and the old hearth.
+    for (let i = 0; i < 6; i++) this.put('rock_moss_set_01', i, ru.x + (r() - 0.5) * 16, ru.z + (r() - 0.5) * 14, 0.6 + r() * 0.6, r() * 6.28, (r() - 0.5) * 0.5, 0.1);
+    this.put('rock_07', 1, ru.x + 2.2, ru.z + 1.4, 1.4, 0.3, 0, 0.3);
+    this.put('tree_stump_01', 0, ru.x - 5.5, ru.z - 6, 1.3, 1.1, 0, 0.03);
+    // A young tree growing up through the floor, as they do in old ruins.
+    tree(-900030, 'calm', ru.x - 1.5, ru.z + 0.8, 0.9);
   }
 
   /**
@@ -656,8 +726,11 @@ export class Forest {
     wild.length = 0;
     this.wildNear(fx, fz, this.wildRadius, wild);
     wild.sort((a, b) => Math.hypot(a.x - fx, a.z - fz) - Math.hypot(b.x - fx, b.z - fz));
+    // Landmark trees first, and from anywhere: the Old One shows over the canopy from afar.
+    for (const t of this.landmarks) add(t);
     for (const t of wild) add(t);
     this.nearWild.length = 0;
+    for (const t of this.landmarks) if (Math.hypot(t.x - fx, t.z - fz) < 40) this.nearWild.push(t);
     for (const t of wild) {
       if (Math.hypot(t.x - fx, t.z - fz) > 40) break;
       this.nearWild.push(t);
@@ -737,13 +810,16 @@ export class Forest {
           const [x, z] = at();
           this.put('tree_stump_01', 0, x, z, 0.8 + r() * 0.6, r() * 6.28, 0, 0.03);
         }
-        // Glades flower in their season.
+        // Glades flower in their season; the meadow most of all.
         const fl = this.flowerSeason;
-        if (d < 0.3 && fl > 0.05) {
-          const nfl = Math.floor((0.3 - d) * 10 * fl * r());
+        const mead = placeById('meadow');
+        const inMeadow = Math.hypot(cx - mead.x, cz - mead.z) < mead.glade * 0.9;
+        if ((d < 0.3 || inMeadow) && fl > 0.05) {
+          const nfl = Math.floor((inMeadow ? 15 : (0.3 - d) * 10 * r()) * fl);
           for (let i = 0; i < nfl; i++) {
             const [x, z] = at();
-            this.put(r() < 0.6 ? 'dandelion_01' : 'flower_gazania', Math.floor(r() * 4), x, z, (0.8 + r() * 0.8) * fl, r() * 6.28);
+            const big = inMeadow ? 1.6 : 1;
+            this.put(r() < (inMeadow ? 0.35 : 0.6) ? 'dandelion_01' : 'flower_gazania', Math.floor(r() * 4), x, z, (0.8 + r() * 0.9) * fl * big, r() * 6.28);
           }
         }
       }

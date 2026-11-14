@@ -30,6 +30,7 @@ from the environment this was built in.
 | `beds.stream` | A small shallow brook, close-miked, babbling over stones. Faded by distance to the stream. |
 | `beds.pond` | Still water: faint lapping, perhaps frogs. Faded by distance to the pond. |
 | `beds.snow` | Muffled winter quiet, very low wind. |
+| `sources.waterfall` | A small waterfall (5–10 m drop) into a pool, recorded from ~10 m. Looped and placed at the Falls, so it is heard faintly from 100+ m away and grows as you approach. |
 | `birds.<species>` | Songs and calls per species with the hours they sing (see below). Perched birds in the game are robin, bluetit, goldfinch and blackbird, and sing from where they sit, so give those four at least. |
 | `steps.grass/leaves/path/water/snow/stone` | Single footsteps on each surface, walking pace. |
 | `score.stems` | A composed score in stems: `pad` (always plays) and one layer per feeling (`joy`, `calm`, `love`, `hope`, `courage`, `sorrow`) that fades in once a tree of that feeling has grown. All stems the same length and tempo so they loop in sync; 2–4 minutes; calm, sparse, no strong downbeat. |

@@ -13,8 +13,9 @@ import { Fauna } from './fauna';
 import { Wildlife } from './life';
 import { MOOD_BY_ID, type MoodId } from './moods';
 import { GARDEN_RADIUS, GROW_SECONDS, MAX_TREES, writeSave, type Save, type TreeSave } from './state';
-import { HILL, LAND, LAND_LIMIT, LocalHeight, WORLD, forestTexture, heightAt, heightTexture, pondShape, streamNearest, waterAt, waterDepth } from './terrain';
+import { HILL, LAND, LAND_LIMIT, LocalHeight, PLACES, WORLD, forestDensity, forestTexture, type Place, heightAt, heightTexture, pondShape, streamNearest, waterAt, waterDepth } from './terrain';
 import { Land } from './land';
+import { Falls } from './landmarks';
 import { Paths } from './paths';
 import { Water } from './water';
 
@@ -25,6 +26,8 @@ export interface WorldEvents {
   change: () => void;
   caption: (tree: TreeSave | null) => void;
   met: (creature: string) => void;
+  /** Arrived somewhere for the first time. */
+  found: (place: Place) => void;
 }
 
 export class World {
@@ -54,7 +57,8 @@ export class World {
   private pathIn = 0;
   private syncedAt = new THREE.Vector2();
   private hearIn = 0;
-  private hear = { stream: 0, pond: 0, canopy: 0 };
+  private hear = { stream: 0, pond: 0, canopy: 0, woods: 0, view: 0 };
+  private falls!: Falls;
   /** What is underfoot, for footsteps. */
   surface: 'grass' | 'leaves' | 'path' | 'water' | 'snow' | 'stone' = 'grass';
   private snowCover = 0;
@@ -191,10 +195,10 @@ export class World {
       s.uniforms.uForest = { value: this.forestTex };
       s.vertexShader = s.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vWuv;')
-        .replace('#include <common>', '#include <common>\nvarying vec2 vLuv;')
-        .replace('#include <begin_vertex>', `#include <begin_vertex>\nvWuv = position.xz / ${WORLD.toFixed(1)} + .5;\nvLuv = position.xz / ${LAND.toFixed(1)} + .5;`);
+        .replace('#include <common>', '#include <common>\nvarying vec2 vLuv;\nvarying float vUp;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\nvWuv = position.xz / ${WORLD.toFixed(1)} + .5;\nvLuv = position.xz / ${LAND.toFixed(1)} + .5;\nvUp = normal.y;`);
       s.fragmentShader = s.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv, vLuv;\nuniform sampler2D uLitter, uMask, uWorldMask, uDirt, uPebble, uForest;\nuniform vec4 uSeason;\nuniform float uSnow, uWet;')
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWuv, vLuv;\nvarying float vUp;\nuniform sampler2D uLitter, uMask, uWorldMask, uDirt, uPebble, uForest;\nuniform vec4 uSeason;\nuniform float uSnow, uWet;')
         .replace(
           '#include <map_fragment>',
           `// Two scales of each photo-texture hide the repeat; leaf litter takes over under trees.
@@ -230,7 +234,12 @@ export class World {
            diffuseColor.rgb *= 1. - uWet * .32;
            float drift = smoothstep(.25, .6, uSnow * (1.15 - m * .5) + (macro - .45) * .6);
            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.86, .9, .96), drift);
-           diffuseColor.rgb *= 1. - smoothstep(.3, .95, wood) * .38;`,
+           diffuseColor.rgb *= 1. - smoothstep(.3, .95, wood) * .38;
+           // Steep ground is bare rock: the falls' face, crags in the mountains.
+           float steep = 1. - smoothstep(.62, .82, vUp);
+           vec3 rock = texture2D(uPebble, vMapUv * .3).rgb * .55 + texture2D(uPebble, vMapUv * .07 + .2).rgb * .25;
+           rock = mix(vec3(dot(rock, vec3(.33))), rock, .4) * vec3(.95, .97, 1.);
+           diffuseColor.rgb = mix(diffuseColor.rgb, rock, steep);`,
         )
         .replace(
           '#include <roughnessmap_fragment>',
@@ -247,6 +256,9 @@ export class World {
     this.forest.setWorldMask(this.paths.texture);
     this.forest.setGrassDensity(this.quality === 'low' ? 0.4 : this.quality === 'medium' ? 0.7 : 1);
     this.scene.add(new Water(this.sky, hTex).group);
+    this.falls = new Falls();
+    this.scene.add(this.falls.group);
+    this.audio.addSource('waterfall', this.falls.sound);
     await this.nearTrees.load(this.forest.speciesList, aniso);
     await this.fauna.load();
     this.fauna.onSing = (sp, at) => this.audio.song(sp, at, this.camera);
@@ -522,6 +534,7 @@ export class World {
     // Portrait screens get a taller field of view so the forest does not feel like a keyhole.
     this.camera.fov = w < h ? 74 : 60;
     this.camera.updateProjectionMatrix();
+    this.falls?.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
     this.life.setPixelScale((h * this.renderer.getPixelRatio() * 0.5) / Math.tan((this.camera.fov * Math.PI) / 360));
   };
 
@@ -781,6 +794,22 @@ export class World {
         if (d < reach * 2) cover += (1 - d / (reach * 2)) * Math.min(1, t.growth);
       }
       this.hear.canopy = Math.min(1, cover / 3);
+      // Deep woods, and how much of a view there is (standing above the land around you).
+      this.hear.woods = forestDensity(this.pos.x, this.pos.z);
+      let ring = 0;
+      for (let k = 0; k < 8; k++) ring += heightAt(this.pos.x + Math.cos(k * 0.785) * 35, this.pos.z + Math.sin(k * 0.785) * 35);
+      const rel = this.pos.y - ring / 8;
+      this.hear.view = THREE.MathUtils.smoothstep(rel, 2.5, 8) * (1 - this.hear.woods * 0.8);
+      // Somewhere new?
+      if (this.active && !this.touring) {
+        const found = (this.save.found ??= []);
+        for (const p of PLACES) {
+          if (!found.includes(p.id) && Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < p.r) {
+            found.push(p.id);
+            this.ev.found(p);
+          }
+        }
+      }
     }
     this.camera.getWorldDirection(this.fwd);
     this.audio.listen(this.camera.position, this.fwd);
@@ -801,6 +830,8 @@ export class World {
       speed: this.vel.length(),
       life: Math.min(1, grown / 6),
       season: this.clock.season.name,
+      woods: this.hear.woods,
+      view: this.hear.view,
     });
 
     // Name the tree you are standing in front of.

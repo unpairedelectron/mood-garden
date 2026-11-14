@@ -24,6 +24,8 @@ export interface Manifest {
   steps?: Partial<Record<Surface, string[]>>;
   /** A composed score in stems that loop in sync: one bed plus one layer per feeling. */
   score?: { stems: Partial<Record<'pad' | 'joy' | 'calm' | 'love' | 'hope' | 'courage' | 'sorrow', string>>; gain?: number };
+  /** Sounds that come from a place in the world (looped, positioned): the falls. */
+  sources?: Partial<Record<'waterfall', string[]>>;
   /** One-shot cues: planting, a tree coming of age, UI. */
   cues?: Partial<Record<'plant' | 'grown' | 'open' | 'close' | 'click' | 'shutter', string>>;
 }
