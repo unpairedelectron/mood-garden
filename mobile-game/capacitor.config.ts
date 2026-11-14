@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 // The native app is the same game, bundled from dist/ into an iOS and an Android shell.
-// Change appId to your own reverse-DNS id before submitting to the stores.
+// appId is the store identity: it cannot change once the app is published.
 const config: CapacitorConfig = {
-  appId: 'com.moodgarden.grove',
+  appId: 'com.unpairedelectron.moodgarden',
   appName: 'Mood Garden',
   webDir: 'dist',
   backgroundColor: '#0e1622',

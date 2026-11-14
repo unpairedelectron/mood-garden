@@ -107,7 +107,7 @@ Native features (all in `src/native.ts`, with web fallbacks):
 - **Share sheet** for photos.
 - Status bar overlay, splash screen held until the grove has drawn, audio suspended in the background.
 
-Before submitting: set your own `appId` in `capacitor.config.ts`, signing in Xcode / Android Studio, and the
+The app ID is `com.unpairedelectron.moodgarden` (it cannot change once published). Before submitting: signing in Xcode / Android Studio, and the
 notification permission wording. App icons and splashes are generated from `public/icon.svg` into `assets/`
 with `npx @capacitor/assets generate`.
 

@@ -1,4 +1,4 @@
-package com.moodgarden.grove;
+package com.unpairedelectron.moodgarden;
 
 import com.getcapacitor.BridgeActivity;
 
